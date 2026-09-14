@@ -18,6 +18,11 @@ services:
       FTLCONF_dns_listeningMode: ALL
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
       FTLCONF_dns_upstreams: '1.1.1.1;9.9.9.9;8.8.8.8'
+      # FTL's webserver rejects requests whose Host header isn't in its trusted
+      # list (default: localhost/pi.hole/container IP) as DNS-rebinding
+      # protection. Caddy forwards "Host: pihole.lan", so it must be added here
+      # or every request through the reverse proxy gets a 403.
+      FTLCONF_webserver_domain: pihole.lan
       # Wildcard local DNS so *.lan resolves to this Pi (see README "Accessing
       # services by hostname"). dns.domain.name/dns.domain.local are left unset
       # since .lan is already Pi-hole's own default for both.
