@@ -1,4 +1,5 @@
 adafruit-blinka
 adafruit-circuitpython-dht
+gpiod>=2.2.2,<3
 lgpio
 paho-mqtt
