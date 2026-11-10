@@ -17,6 +17,7 @@ Services running on the home Raspberry Pi. Each service lives in its own directo
 - `dht22/` — reads the DHT22 sensor in the basement low-voltage cabinet (wired to GPIO4) roughly every 15s, and every 2 minutes averages that window's readings and publishes temperature, humidity, and a calculated dew point to Mosquitto on `home/dht22/{temperature,humidity,dew_point}` (retained).
 - `caddy/` — reverse proxy. The only service bound to host ports 80/443. Routes friendly hostnames under `.lan` to each service's web UI, with HTTPS via Caddy's own internal CA.
 - `homebridge/` — HomeKit bridge, exposing the DHT22 readings (via MQTT) as Apple Home accessories. Runs with `network_mode: host` — see below, it's a deliberate exception to how every other service is networked.
+- `scrypted/` — exposes the UniFi Protect doorbell to Apple Home (live view, two-way talk, ring notifications, HomeKit Secure Video). Also `network_mode: host`, for the same reason as Homebridge — see "Scrypted" below.
 
 ## Accessing services by hostname
 
@@ -113,6 +114,36 @@ HomeKit relies on mDNS/Bonjour multicast plus dynamic per-accessory TCP ports, n
    HomeKit has no native "dew point" accessory type, so the dew point is exposed as a second temperature sensor — the name makes the meaning clear even though Home shows a thermometer icon.
 5. Restart Homebridge, then pair it in the Apple Home app by scanning the QR/pairing code on the Homebridge UI dashboard.
 
+## Scrypted (doorbell camera)
+
+The doorbell is adopted in UniFi Protect on the gateway, which keeps recording to its own disk. Scrypted sits between Protect and Apple Home. It replaced a UniFi Protect plugin in Homebridge: Scrypted keeps a rolling prebuffer of the stream in RAM and hands HomeKit the camera's H.264 untouched (no transcoding), so streams open faster and two-way audio takes a shorter path. Homebridge stays for the DHT22 sensors.
+
+Networking is the same story as Homebridge: `network_mode: host`, not on `homelab`, Caddy reaches the UI at `host.docker.internal:10443` (Scrypted's self-signed HTTPS, so the `scrypted.lan` block skips upstream certificate verification), and the host's Avahi is shared through the D-Bus/socket mounts.
+
+Differences from Scrypted's upstream compose file, on purpose: the `:lite` image (no object-detection stack), no Watchtower auto-updates, no hardcoded public DNS servers (they would bypass Pi-hole), and no NVR volume (recording to an SD card is a bad idea; Protect and HomeKit Secure Video cover it).
+
+### One-time setup: Scrypted
+
+1. **Protect**: create a local-only UniFi OS user with full Protect access for Scrypted. On the doorbell, make sure the stream is H.264 (turn off Enhanced/H.265 encoding if offered) — HomeKit can't play H.265.
+2. `docker compose -f scrypted/compose.yml up -d`, restart Caddy if `scrypted.lan` is new to it (`docker compose -f caddy/compose.yml restart`), then visit `https://scrypted.lan` and create the admin account.
+3. **Plugins**: install **UniFi Protect** and **HomeKit** (Rebroadcast and Snapshot come along as dependencies). In the UniFi Protect plugin, enter the gateway's IP and the user from step 1; the doorbell appears as a device.
+4. **Low-latency settings** on the doorbell device:
+   - Rebroadcast: prebuffer enabled on the high and medium streams.
+   - HomeKit stream selection: high for local, medium for remote, low for Apple Watch. Leave transcoding off.
+   - HomeKit plugin → mDNS advertiser: Avahi (same choice as Homebridge). If Home has trouble finding the accessory, fall back to the default advertiser.
+5. **Pair**: the doorbell is exposed as its own standalone HomeKit accessory — scan the QR code on the device's HomeKit page in Scrypted. In Home, set it to "Stream & Allow Recording" for HomeKit Secure Video (needs iCloud+ and a home hub).
+
+### Migrating from the Homebridge plugin
+
+Pair the Scrypted doorbell into a temporary room first so both versions exist side by side, and compare stream open time, talk delay, and ring notification speed. Then:
+
+1. Redo notifications, automations, and chime settings on the new accessory — they don't carry over.
+2. Remove the old doorbell from Home, uninstall the UniFi Protect plugin in Homebridge, and restart Homebridge.
+
+HomeKit Secure Video clips belong to the old accessory and disappear with it; Protect's own recordings are untouched. Until step 2, rollback is just stopping the Scrypted container and removing the new accessory.
+
+If you hear yourself when talking through Home, that is the doorbell's speaker feeding its own microphone (the Protect app cancels it; HomeKit doesn't always). Lowering the doorbell's speaker volume in Protect helps.
+
 ### Router checklist (UniFi)
 
 HomeKit discovery is easy to break at the router/AP level. On a UniFi Cloud Gateway Fiber (or any UniFi OS gateway), assuming the Pi and your Apple devices are on one flat LAN:
@@ -146,6 +177,7 @@ docker compose -f mosquitto/compose.yml up -d
 docker compose -f dht22/compose.yml up -d --build
 docker compose -f caddy/compose.yml up -d
 docker compose -f homebridge/compose.yml up -d
+docker compose -f scrypted/compose.yml up -d
 ```
 
-`pihole`, `mosquitto`, `dht22`, and `caddy` need the `homelab` network to exist first (they'll fail to start otherwise); `homebridge` doesn't use it at all (see Homebridge networking above). Then complete the one-time setup steps above (wildcard DNS in Pi-hole, trusting Caddy's CA, the Homebridge setup wizard) before everything is reachable end to end.
+`pihole`, `mosquitto`, `dht22`, and `caddy` need the `homelab` network to exist first (they'll fail to start otherwise); `homebridge` and `scrypted` don't use it at all (see Homebridge networking above). Then complete the one-time setup steps above (wildcard DNS in Pi-hole, trusting Caddy's CA, the Homebridge setup wizard) before everything is reachable end to end.

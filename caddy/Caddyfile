@@ -10,3 +10,11 @@ pihole.lan {
 homebridge.lan {
 	reverse_proxy host.docker.internal:8581
 }
+
+scrypted.lan {
+	reverse_proxy https://host.docker.internal:10443 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}
