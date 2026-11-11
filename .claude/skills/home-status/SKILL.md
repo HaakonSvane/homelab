@@ -23,13 +23,21 @@ The reader is usually on their phone. Keep it short and scannable.
    - `warn` → `⚠️ N thing(s) worth a look`.
    - `crit` → `🔴 N problem(s) need attention`.
    - Any section `unknown` → say which check could not run and its `error`.
-2. **Then one bullet per area**, in this order: Climate, Containers, Doorbell, Pi-hole, Network, Host, Logs, Repo. Healthy areas get **one short line** each, for example:
-   - Climate: `🌡️ 24.0 °C · 34 % RH · dew point 7.2 °C (24h: 23.9–24.0 °C)`
-   - Pi-hole: `🛡️ 8.3 % of 65k queries blocked, 13 devices`
-   - Doorbell: `🔔 4 rings, last 18:45 · 24 motion events`
-   - Network: `🌐 2/2 UniFi devices online · 12 clients`
-   - Host: `🖥️ 47 °C · disk 4 % · up 21 h`
-3. **Areas that are not `ok` get a little more**: what is wrong (quote the relevant `examples`, `current_issues`, or failing container), when it last happened, and one suggested next step. For doorbell `earlier_issues`, mention them only briefly — they are history, not current problems.
+2. **Then a summary table** with one row per area, in this order: Climate, Containers, Doorbell, Pi-hole, Network, Host, Logs, Repo. Three columns: `Area` (icon + name), `Status` (the section's status as an emoji only: `ok` → ✅, `warn` → ⚠️, `crit` → 🔴, `unknown` → ❔), and `Summary` (a few words, short enough not to wrap on a phone). For example:
+
+   | Area | Status | Summary |
+   |---|---|---|
+   | 🌡️ Climate | ✅ | 24.0 °C · 34 % RH · dew pt 7.2 °C |
+   | 📦 Containers | ✅ | 6/6 running, no restarts |
+   | 🔔 Doorbell | ⚠️ | 4 rings (last 18:45) · HomeKit plugin crashing |
+   | 🛡️ Pi-hole | ✅ | 8.3 % of 65k blocked · 13 devices |
+   | 🌐 Network | ✅ | 2/2 UniFi devices · 12 clients |
+   | 🖥️ Host | ✅ | 47 °C · disk 4 % · up 21 h |
+   | 📜 Logs | ⚠️ | 3 unexpected Scrypted errors |
+   | 🗂️ Repo | ✅ | clean, in sync |
+
+   For a section that is not `ok`, the summary names the problem, not just the numbers.
+3. **Below the table, only the areas that are not `ok`** get a short section each (a bold heading with the same icon and status emoji): what is wrong (quote the relevant `examples`, `current_issues`, or failing container), when it last happened, and one suggested next step. For doorbell `earlier_issues`, mention them only briefly — they are history, not current problems. Healthy areas get nothing beyond their table row. If everything is `ok`, stop after the table.
 4. Times: show local clock time (HH:MM) and say "yesterday" when the date isn't today relative to `generated_at`.
 
 ## Rules
