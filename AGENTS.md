@@ -10,8 +10,11 @@ There is no test suite, linter, or CI in this repo. The available correctness ch
 # Validate a compose file (interpolates env vars, checks YAML/schema — catches most mistakes)
 docker compose -f <service>/compose.yml config
 
-# Syntax-check the one piece of application code in the repo
-python3 -m py_compile dht22/app/reader.py
+# Syntax-check the application code in the repo
+python3 -m py_compile dht22/app/reader.py status/collect.py
+
+# Run the read-only home health collector (prints JSON; used by the home-status skill)
+python3 -I status/collect.py
 ```
 
 Deploying/operating a service (each is an independent Compose project — see Architecture):
@@ -52,3 +55,6 @@ HomeKit's mDNS/Bonjour advertisement and dynamic per-accessory TCP ports don't s
 - One flat `./data` directory per service for runtime state, bind-mounted directly (e.g. `./data:/etc/pihole`) — no nested subfolders. `data/` is blanket-gitignored. Static, version-controlled config lives outside `data/` instead (e.g. `mosquitto/config/mosquitto.conf`, `caddy/Caddyfile`).
 - `.env` is used when a value is a secret (e.g. `pihole/.env` → `PIHOLE_PASSWORD`) or genuinely deployment-specific — would differ on another Pi/network (e.g. `PIHOLE_LAN_IP`) — interpolated via `${VAR}` either way; config that's identical regardless of deployment (`TZ`, ports, intervals) stays directly in `compose.yml` under `environment:`.
 - `container_name` is always set explicitly to match the service name; `restart: unless-stopped` is always used.
+
+### Home status check
+`status/collect.py` (stdlib only, read-only) gathers host, container, log, Pi-hole, DHT22, doorbell, UniFi and repo health into one JSON report, with every threshold and status decided in code. The project skill `.claude/skills/home-status` (forked, `model: sonnet`) only turns that JSON into a summary. When adding a service, add it to `EXPECTED_CONTAINERS`. When a new harmless log line shows up, add a commented pattern to `BENIGN_LOG_PATTERNS` instead of loosening `ERROR_RE`. UniFi credentials live in `status/.env` (a read-only API key; see `README.md` "Home status & remote access").

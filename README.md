@@ -156,6 +156,37 @@ HomeKit discovery is easy to break at the router/AP level. On a UniFi Cloud Gate
 - **Multicast DNS (mDNS) Proxy** and **IGMP snooping** settings only matter if the Pi and your Apple devices sit on *different* VLANs — leave them alone on a flat single-LAN setup.
 - **Zone-Based Firewall** (current UniFi OS default) already allows all traffic within one zone/VLAN, so no custom firewall rules should be needed unless you're running the Pi on an isolated VLAN — if so, that needs explicit rules for UDP 5353 and HAP's dynamic TCP ports, not just mDNS reflection.
 
+## Home status & remote access
+
+Ask Claude Code "how's everything at home?" (or run `/home-status`) for a short health summary. It's designed to be asked from the Claude phone app.
+
+- `status/collect.py` is a read-only, stdlib-only collector that prints one JSON health report. It covers the host (temperature, disk, throttling), all six containers, unexpected log errors, Pi-hole (24h blocked %, blocklist freshness), the DHT22 cabinet climate (latest reading plus the 24h range), the doorbell (rings, motion, known regressions), the UniFi network (devices, clients) and the repo state. Thresholds are constants at the top of the file. Log lines already triaged as harmless are in `BENIGN_LOG_PATTERNS`, each with the reason, so new kinds of errors still surface. Run it directly with `python3 -I status/collect.py`.
+- `.claude/skills/home-status/SKILL.md` is a Claude Code skill. It runs the collector in a forked sub-agent on Sonnet (cheap and fast, about $0.06 per check) and turns the JSON into a phone-friendly summary. Its `allowed-tools` lets it run the collector without a permission prompt. It never runs anything else and never attempts fixes.
+
+`status/.env` (gitignored) holds the UniFi connection:
+
+```
+UNIFI_HOST=192.168.1.1
+UNIFI_API_KEY=<key>
+```
+
+The key belongs to a dedicated **local-only** UniFi OS user (`claude-code`, role **Network: View Only**, no Protect access). In UniFi OS an API key has no scope of its own; it carries the live role of the user who created it. To create the key, temporarily raise the user's role, generate the key under Network → Settings → Control Plane → Integrations while logged in *as that user* at `https://192.168.1.1`, then set the role back to View Only. Afterwards the API reports the key as `site_role: readonly`.
+
+### Remote Control (from the phone)
+
+This uses Claude Code's built-in [Remote Control](https://code.claude.com/docs/en/remote-control) server mode. Claude runs on the Pi, and the Claude app only shows the session. The server is an ordinary foreground process ("keep this command running"), so it runs inside `tmux` to survive SSH disconnects:
+
+```bash
+sudo apt install tmux                                       # once
+cd /opt/homelab && claude remote-control --name homelab     # once, interactively: accept "Enable Remote Control?" and folder trust, then Ctrl+C
+tmux new -As homelab 'cd /opt/homelab && claude remote-control --name homelab'
+```
+
+Detach with `Ctrl+B` then `D`. Run the same `tmux new -As homelab …` command to reattach. Then open the **homelab** session in the Claude app and ask how things are.
+
+- **After a reboot**, or if the network was down for more than about 10 minutes (the server exits by design), SSH in and run the `tmux new -As homelab …` line again. Anthropic doesn't document an auto-start, so none is set up here.
+- Sessions start in the default permission mode. The status check runs without prompts, and anything else asks for approval on the phone. Turn on **Push when actions required** in `/config` to get those prompts as notifications.
+
 ## Running a service
 
 From the repo root, every service follows the same pattern (swap in the service directory):
