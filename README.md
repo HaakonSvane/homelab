@@ -54,13 +54,13 @@ Caddy issues certificates from its own internal CA rather than a public one (the
 Since each service is its own Compose project, services can't reach each other by name by default. Services that need to talk to one another join a shared external Docker network, created once per Pi:
 
 ```bash
-docker network create homelab
+docker network create --ipv6 homelab
 ```
 
 Running this a second time doesn't create a duplicate or break anything — Docker just refuses with `Error response from daemon: network with name homelab already exists` and exits non-zero. Safe to ignore, or make it idempotent:
 
 ```bash
-docker network inspect homelab >/dev/null 2>&1 || docker network create homelab
+docker network inspect homelab >/dev/null 2>&1 || docker network create --ipv6 homelab
 ```
 
 Any compose file that needs to reach another service declares:
@@ -72,6 +72,10 @@ networks:
 ```
 
 `pihole`, `mosquitto`, `dht22`, and `caddy` join it today — Pi-hole needs it so Caddy can reach its web UI by container name. `homebridge` is the one exception: see below.
+
+**Why `--ipv6`:** the LAN runs dual-stack and the router advertises the Pi's IPv6 address as a DNS server, so many clients query Pi-hole over IPv6. On an IPv4-only bridge network, Docker can only forward those through its userland proxy, which re-originates each query from the network gateway (`172.18.0.1`) — Pi-hole still filters them, but every IPv6 client collapses into that one address in its stats and per-client group rules. With IPv6 enabled on the network, Docker (27+, where `ip6tables` is on by default) forwards IPv6 with real DNAT rules instead, so Pi-hole sees each client's actual address. Docker assigns the network a random ULA `/64` on its own; no `daemon.json` changes are needed.
+
+An existing network can't have IPv6 switched on in place. To convert one, stop every service on it (`docker compose -f <svc>/compose.yml down` for `pihole`, `mosquitto`, `dht22`, `caddy`), then `docker network rm homelab`, `docker network create --ipv6 homelab`, and bring them back up — about a minute of DNS downtime.
 
 ## Homebridge networking
 
@@ -170,7 +174,7 @@ docker compose -f <service>/compose.yml down
 Concretely, to bring everything up on a fresh Pi:
 
 ```bash
-docker network inspect homelab >/dev/null 2>&1 || docker network create homelab
+docker network inspect homelab >/dev/null 2>&1 || docker network create --ipv6 homelab
 
 docker compose -f pihole/compose.yml up -d
 docker compose -f mosquitto/compose.yml up -d

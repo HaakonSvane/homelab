@@ -18,7 +18,7 @@ Deploying/operating a service (each is an independent Compose project — see Ar
 
 ```bash
 # one-time, before starting any service that joins the shared network
-docker network create homelab
+docker network create --ipv6 homelab
 
 docker compose -f <service>/compose.yml up -d       # start (add --build for dht22, it's the only built image)
 docker compose -f <service>/compose.yml logs -f      # logs
@@ -31,7 +31,7 @@ docker compose -f <service>/compose.yml down         # stop
 Each service lives in its own top-level directory with its own `compose.yml` (not `docker-compose.yml`) — there is no root compose file. Every directory is a separate Compose project, deployed and managed independently. The direct consequence: each project gets its own default Docker network, so services cannot reach each other by container name unless explicitly wired together (see below).
 
 ### The `homelab` shared network
-Cross-service traffic goes over an external Docker network named `homelab`, created once (`docker network create homelab`) and joined by declaring `networks: { homelab: { external: true } }` in a service's compose file. `pihole`, `mosquitto`, `dht22`, and `caddy` all join it so they can address each other by container name (e.g. Caddy → `pihole:80`, `dht22` → `mosquitto:1883`). `homebridge` is a deliberate exception — see below.
+Cross-service traffic goes over an external Docker network named `homelab`, created once (`docker network create --ipv6 homelab`) and joined by declaring `networks: { homelab: { external: true } }` in a service's compose file. `pihole`, `mosquitto`, `dht22`, and `caddy` all join it so they can address each other by container name (e.g. Caddy → `pihole:80`, `dht22` → `mosquitto:1883`). `homebridge` is a deliberate exception — see below. The network is created with `--ipv6` so Docker forwards IPv6 DNS queries to Pi-hole via DNAT, keeping each client's real address; without it, every IPv6 client shows up in Pi-hole as the bridge gateway (`172.18.0.1`). Details in `README.md` under "Shared network".
 
 ### Data pipeline: DHT22 → MQTT → Homebridge → Apple Home
 `dht22/app/reader.py` samples the sensor (wired to GPIO4 on a Raspberry Pi 5 — GPIO is exposed at `/dev/gpiochip4`, not `gpiochip0` as on older Pi models, because of the Pi 5's RP1 southbridge chip) every `SAMPLE_INTERVAL_SECONDS` (15s), and every `PUBLISH_INTERVAL_SECONDS` (120s) averages that window's sub-readings with a plain arithmetic mean — deliberately unweighted, since equal weighting minimizes variance for a slowly-changing signal like a basement cabinet, whereas recency-weighting would trade noise reduction for responsiveness that isn't needed here. It computes a dew point (Magnus-Tetens formula, Alduchov–Eskridge constants) from the averaged values and publishes three retained MQTT topics to `mosquitto`: `home/dht22/temperature`, `home/dht22/humidity`, `home/dht22/dew_point`. `homebridge` subscribes to these via the `homebridge-mqttthing` plugin (configured live through Homebridge's own UI — not checked into this repo) to expose them as HomeKit accessories.
