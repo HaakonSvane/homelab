@@ -28,6 +28,14 @@ services:
       # since .lan is already Pi-hole's own default for both.
       FTLCONF_misc_dnsmasq_lines: |-
         address=/lan/${PIHOLE_LAN_IP}
+      # The Pi host already keeps its own clock in sync; FTL's NTP client would
+      # need CAP_SYS_TIME to set it and only logs warnings without it.
+      FTLCONF_ntp_sync_active: "false"
+
+    # Lets FTL raise its own process priority (misc.nice, default -10) so DNS
+    # stays responsive when the Pi is busy; without it FTL warns at startup.
+    cap_add:
+      - SYS_NICE
 
     volumes:
       - ./data:/etc/pihole
