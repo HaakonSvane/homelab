@@ -2,16 +2,24 @@
 	local_certs
 }
 
-pihole.lan {
+# Each site also answers on its old .lan name during the move to home.arpa.
+# Drop the .lan names (and the address=/lan/ line in pihole/compose.yml) once
+# every device uses home.arpa.
+
+pihole.home.arpa, pihole.lan {
 	redir / /admin/
-	reverse_proxy pihole:80
+	reverse_proxy pihole:80 {
+		# FTL only trusts one Host (webserver.domain), so the .lan alias has
+		# to present itself under the home.arpa name.
+		header_up Host pihole.home.arpa
+	}
 }
 
-homebridge.lan {
+homebridge.home.arpa, homebridge.lan {
 	reverse_proxy host.docker.internal:8581
 }
 
-scrypted.lan {
+scrypted.home.arpa, scrypted.lan {
 	reverse_proxy https://host.docker.internal:10443 {
 		transport http {
 			tls_insecure_skip_verify
