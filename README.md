@@ -23,7 +23,7 @@ Services running on the home Raspberry Pi. Each service lives in its own directo
 
 Each service with a web UI gets a subdomain under `home.arpa` (e.g. `https://pihole.home.arpa`), proxied by Caddy. New sites are added as blocks in `caddy/Caddyfile`.
 
-`home.arpa` is the IETF-standardized domain for exactly this (RFC 8375). `.local` is out because it is reserved for mDNS/Bonjour (intercepted by macOS/iOS/Linux/Windows before a real DNS query fires). The repo used `.lan` from August to November 2026, after a wildcard for `home.arpa` failed to resolve on Pi-hole FTL v6.7; it resolves correctly on FTL v6.8 and v6.9, so the names moved back. `.lan` had its own cost: it is not a real top-level domain, so browsers treat a bare `pihole.home.arpa` in the address bar as a search instead of an address. `.arpa` is a real TLD, so `pihole.home.arpa` navigates. The old `.lan` names still resolve during the move (an extra `address=/lan/` line in `pihole/compose.yml` and a second name on each `caddy/Caddyfile` block) and can be removed once every device uses `home.arpa`.
+`home.arpa` is the IETF-standardized domain for exactly this (RFC 8375). `.local` is out because it is reserved for mDNS/Bonjour (intercepted by macOS/iOS/Linux/Windows before a real DNS query fires). The repo used `.lan` from August to November 2026, after a wildcard for `home.arpa` failed to resolve on Pi-hole FTL v6.7; it resolves correctly on FTL v6.8 and v6.9, so the names moved back. `.lan` had its own cost: it is not a real top-level domain, so browsers treat a bare `pihole.home.arpa` in the address bar as a search instead of an address. `.arpa` is a real TLD, so `pihole.home.arpa` navigates.
 
 ### One-time setup: wildcard DNS in Pi-hole
 

@@ -25,11 +25,9 @@ services:
       FTLCONF_webserver_domain: pihole.home.arpa
       # Wildcard local DNS so *.home.arpa resolves to this Pi (see README
       # "Accessing services by hostname"). dns.domain.name/dns.domain.local are
-      # left at their defaults; the wildcard works without them. The /lan/ line
-      # keeps the old names alive during the move and can be removed afterwards.
+      # left at their defaults; the wildcard works without them.
       FTLCONF_misc_dnsmasq_lines: |-
         address=/home.arpa/${PIHOLE_LAN_IP}
-        address=/lan/${PIHOLE_LAN_IP}
       # The Pi host already keeps its own clock in sync; FTL's NTP client would
       # need CAP_SYS_TIME to set it and only logs warnings without it.
       FTLCONF_ntp_sync_active: "false"
