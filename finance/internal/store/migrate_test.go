@@ -42,7 +42,7 @@ func TestMigrateAppliesInOrderAndIsIdempotent(t *testing.T) {
 	db := openRaw(t)
 	fsys := fstest.MapFS{
 		// Listed out of order on purpose; 0002 depends on 0001.
-		"0002_add_b.sql": {Data: []byte(`ALTER TABLE a ADD COLUMN b TEXT; INSERT INTO a (id, b) VALUES (1, 'x');`)},
+		"0002_add_b.sql":    {Data: []byte(`ALTER TABLE a ADD COLUMN b TEXT; INSERT INTO a (id, b) VALUES (1, 'x');`)},
 		"0001_create_a.sql": {Data: []byte(`CREATE TABLE a (id INTEGER PRIMARY KEY);`)},
 		"README.md":         {Data: []byte("ignored")},
 	}
