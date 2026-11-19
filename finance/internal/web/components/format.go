@@ -1,10 +1,11 @@
-// Package components holds the shared templ components (page layout, tab bar) and
+// Package components holds the shared templ components (page layout, masthead) and
 // the nb-NO display helpers they use.
 package components
 
 import "time"
 
-// Tab is the active bottom-bar tab; TabNone hides the bar (login, enrollment, errors).
+// Tab is the active section in the masthead; TabNone hides the masthead (login,
+// enrollment, errors).
 type Tab string
 
 const (

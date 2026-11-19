@@ -9,17 +9,13 @@ import (
 templ Home(u store.User) {
 	@components.Page("Oversikt", components.TabOverview) {
 		<h1>Hei, { u.DisplayName }!</h1>
-		<div class="card">
-			<p>Du er logget inn. Oversikten over månedens overføringer kommer snart.</p>
-		</div>
+		<p class="muted">Du er logget inn. Oversikten over månedens overføringer kommer snart.</p>
 	}
 }
 
 templ ComingSoon(title string, tab components.Tab) {
 	@components.Page(title, tab) {
 		<h1>{ title }</h1>
-		<div class="card">
-			<p class="muted">Denne siden kommer snart.</p>
-		</div>
+		<p class="muted">Denne siden kommer snart.</p>
 	}
 }
