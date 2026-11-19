@@ -1,0 +1,31 @@
+services:
+  finance:
+    container_name: finance
+    build:
+      context: .
+      platforms:
+        - linux/arm64
+    environment:
+      TZ: Europe/Oslo
+    # The image runs as uid 65532 (distroless "nonroot"); ./data must be owned by it.
+    volumes:
+      - ./data:/data
+    networks:
+      - homelab
+    # distroless has no curl/wget, so the binary checks its own /healthz.
+    healthcheck:
+      test: ["CMD", "/finance", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+networks:
+  homelab:
+    external: true

@@ -18,6 +18,7 @@ Services running on the home Raspberry Pi. Each service lives in its own directo
 - `caddy/` — reverse proxy. The only service bound to host ports 80/443. Routes friendly hostnames under `home.arpa` to each service's web UI, with HTTPS via Caddy's own internal CA.
 - `homebridge/` — HomeKit bridge, exposing the DHT22 readings (via MQTT) as Apple Home accessories. Runs with `network_mode: host` — see below, it's a deliberate exception to how every other service is networked.
 - `scrypted/` — exposes the UniFi Protect doorbell to Apple Home (live view, two-way talk, ring notifications, HomeKit Secure Video). Also `network_mode: host`, for the same reason as Homebridge — see "Scrypted" below.
+- `finance/` — "Finans", a small web app (Go, SQLite, passkey login) at `https://finans.home.arpa` that works out each person's monthly transfer to the shared expense account. Under construction.
 
 ## Accessing services by hostname
 
@@ -160,7 +161,7 @@ HomeKit discovery is easy to break at the router/AP level. On a UniFi Cloud Gate
 
 Ask Claude Code "how's everything at home?" (or run `/home-status`) for a short health summary. It's designed to be asked from the Claude phone app.
 
-- `status/collect.py` is a read-only, stdlib-only collector that prints one JSON health report. It covers the host (temperature, disk, throttling), all six containers, unexpected log errors, Pi-hole (24h blocked %, blocklist freshness), the DHT22 cabinet climate (latest reading plus the 24h range), the doorbell (rings, motion, known regressions), the UniFi network (devices, clients) and the repo state. Thresholds are constants at the top of the file. Log lines already triaged as harmless are in `BENIGN_LOG_PATTERNS`, each with the reason, so new kinds of errors still surface. Run it directly with `python3 -I status/collect.py`.
+- `status/collect.py` is a read-only, stdlib-only collector that prints one JSON health report. It covers the host (temperature, disk, throttling), all seven containers, unexpected log errors, Pi-hole (24h blocked %, blocklist freshness), the DHT22 cabinet climate (latest reading plus the 24h range), the doorbell (rings, motion, known regressions), the UniFi network (devices, clients) and the repo state. Thresholds are constants at the top of the file. Log lines already triaged as harmless are in `BENIGN_LOG_PATTERNS`, each with the reason, so new kinds of errors still surface. Run it directly with `python3 -I status/collect.py`.
 - `.claude/skills/home-status/SKILL.md` is a Claude Code skill. It runs the collector in a forked sub-agent on Sonnet (cheap and fast, about $0.06 per check) and turns the JSON into a phone-friendly summary. Its `allowed-tools` lets it run the collector without a permission prompt. It never runs anything else and never attempts fixes.
 
 `status/.env` (gitignored) holds the UniFi connection:

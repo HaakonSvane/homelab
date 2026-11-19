@@ -18,3 +18,7 @@ scrypted.home.arpa {
 		}
 	}
 }
+
+finans.home.arpa {
+	reverse_proxy finance:8080
+}

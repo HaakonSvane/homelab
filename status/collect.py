@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 REPO = "/opt/homelab"
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
-EXPECTED_CONTAINERS = ["pihole", "mosquitto", "dht22", "caddy", "homebridge", "scrypted"]
+EXPECTED_CONTAINERS = ["pihole", "mosquitto", "dht22", "caddy", "homebridge", "scrypted", "finance"]
 LOG_WINDOW = "24h"
 
 DISK_WARN_PCT, DISK_CRIT_PCT = 80, 90
@@ -53,6 +53,7 @@ BENIGN_LOG_PATTERNS = {
         r"HTTP/[23] skipped because it requires TLS",  # :80 listener exists only to redirect
         r"certutil",                            # Caddy can't install its CA into the container's NSS store
         r"installing root certificate",
+        r"exiting; byeee",                      # logged at level warn on every clean restart (SIGTERM)
     ],
     "homebridge": [
         r"unable to determine which interface",  # side effect of network_mode: host
