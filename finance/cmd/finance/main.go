@@ -3,8 +3,10 @@
 //
 // Usage:
 //
-//	finance serve         run the web server
-//	finance healthcheck   exit 0 if the local server's /healthz answers ok (for Docker)
+//	finance serve                           run the web server
+//	finance add-user <name> <display name>  create one of the two users
+//	finance seed <db path> [year]           fill an EMPTY database with fictional dev data
+//	finance healthcheck                     exit 0 if the local /healthz answers ok (for Docker)
 //
 // Configuration comes from the environment:
 //
@@ -22,21 +24,26 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	// Embed the zoneinfo database so TZ=Europe/Oslo works in a distroless image.
 	_ "time/tzdata"
 
+	"github.com/HaakonSvane/homelab/finance/internal/month"
 	"github.com/HaakonSvane/homelab/finance/internal/store"
 	"github.com/HaakonSvane/homelab/finance/internal/web"
 )
 
-const usage = `usage: finance <command>
+const usage = `usage: finance <command> [arguments]
 
 commands:
-  serve         run the web server
-  healthcheck   check that the local server answers /healthz
+  serve                           run the web server
+  add-user <name> <display name>  create a user (name: lowercase login handle, e.g. kari)
+  seed <db path> [year]           fill an empty database with fictional dev data
+  healthcheck                     check that the local server answers /healthz
 `
 
 func main() {
@@ -48,6 +55,10 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		err = serve()
+	case "add-user":
+		err = addUser(os.Args[2:])
+	case "seed":
+		err = seed(os.Args[2:])
 	case "healthcheck":
 		err = healthcheck()
 	case "-h", "--help", "help":
@@ -74,8 +85,7 @@ func serve() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	dbPath := env("FINANCE_DB", "/data/finance.db")
-	st, err := store.Open(ctx, dbPath)
+	st, err := store.Open(ctx, dbPath())
 	if err != nil {
 		return err
 	}
@@ -91,7 +101,7 @@ func serve() error {
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	slog.Info("listening", "addr", srv.Addr, "db", dbPath)
+	slog.Info("listening", "addr", srv.Addr, "db", dbPath())
 
 	select {
 	case err := <-errc:
@@ -125,5 +135,53 @@ func healthcheck() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("healthz: %s: %s", resp.Status, body)
 	}
+	return nil
+}
+
+func dbPath() string { return env("FINANCE_DB", "/data/finance.db") }
+
+func addUser(args []string) error {
+	if len(args) < 2 {
+		return errors.New("usage: finance add-user <name> <display name>")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dbPath())
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	u, err := st.CreateUser(ctx, args[0], strings.Join(args[1:], " "))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Created user %q (%s), id %d.\n", u.Name, u.DisplayName, u.ID)
+	return nil
+}
+
+// seed takes the database path as an explicit argument (not FINANCE_DB), so fake
+// data can't land in the real database by accident. Store.Seed also refuses any
+// database that already has users.
+func seed(args []string) error {
+	if len(args) < 1 || len(args) > 2 {
+		return errors.New("usage: finance seed <db path> [year]")
+	}
+	year := month.Of(time.Now()).Year()
+	if len(args) == 2 {
+		y, err := strconv.Atoi(args[1])
+		if err != nil {
+			return fmt.Errorf("year: %w", err)
+		}
+		year = y
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.Seed(ctx, year); err != nil {
+		return err
+	}
+	fmt.Printf("Seeded %s with the fictional Nordmann household for %d.\n", args[0], year)
 	return nil
 }
