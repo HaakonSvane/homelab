@@ -7,6 +7,9 @@ services:
         - linux/arm64
     environment:
       TZ: Europe/Oslo
+      # Passkeys are bound to this host name (the WebAuthn relying party ID).
+      # Changing it later makes every registered passkey useless.
+      FINANCE_ORIGIN: https://finans.home.arpa
     # The image runs as uid 65532 (distroless "nonroot"); ./data must be owned by it.
     volumes:
       - ./data:/data

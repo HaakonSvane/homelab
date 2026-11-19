@@ -5,13 +5,17 @@
 //
 //	finance serve                           run the web server
 //	finance add-user <name> <display name>  create one of the two users
+//	finance enroll <name>                   print a one-time link to register a passkey
+//	finance reset-passkeys <name>           remove a user's passkeys and sessions (recovery)
 //	finance seed <db path> [year]           fill an EMPTY database with fictional dev data
 //	finance healthcheck                     exit 0 if the local /healthz answers ok (for Docker)
 //
 // Configuration comes from the environment:
 //
-//	FINANCE_ADDR  listen address (default :8080)
-//	FINANCE_DB    SQLite database path (default /data/finance.db)
+//	FINANCE_ADDR    listen address (default :8080)
+//	FINANCE_DB      SQLite database path (default /data/finance.db)
+//	FINANCE_ORIGIN  public origin, e.g. https://finans.home.arpa (serve, enroll).
+//	                Its host is the passkey relying party ID: never change it.
 package main
 
 import (
@@ -32,6 +36,7 @@ import (
 	// Embed the zoneinfo database so TZ=Europe/Oslo works in a distroless image.
 	_ "time/tzdata"
 
+	"github.com/HaakonSvane/homelab/finance/internal/auth"
 	"github.com/HaakonSvane/homelab/finance/internal/month"
 	"github.com/HaakonSvane/homelab/finance/internal/store"
 	"github.com/HaakonSvane/homelab/finance/internal/web"
@@ -42,6 +47,8 @@ const usage = `usage: finance <command> [arguments]
 commands:
   serve                           run the web server
   add-user <name> <display name>  create a user (name: lowercase login handle, e.g. kari)
+  enroll <name>                   print a one-time link (30 min) to register a passkey
+  reset-passkeys <name>           remove a user's passkeys and sessions (account recovery)
   seed <db path> [year]           fill an empty database with fictional dev data
   healthcheck                     check that the local server answers /healthz
 `
@@ -57,6 +64,10 @@ func main() {
 		err = serve()
 	case "add-user":
 		err = addUser(os.Args[2:])
+	case "enroll":
+		err = enroll(os.Args[2:])
+	case "reset-passkeys":
+		err = resetPasskeys(os.Args[2:])
 	case "seed":
 		err = seed(os.Args[2:])
 	case "healthcheck":
@@ -90,10 +101,14 @@ func serve() error {
 		return err
 	}
 	defer st.Close()
+	a, err := auth.New(st, os.Getenv("FINANCE_ORIGIN"))
+	if err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              env("FINANCE_ADDR", ":8080"),
-		Handler:           web.New(st),
+		Handler:           web.New(st, a),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -101,7 +116,7 @@ func serve() error {
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	slog.Info("listening", "addr", srv.Addr, "db", dbPath())
+	slog.Info("listening", "addr", srv.Addr, "db", dbPath(), "origin", a.Origin())
 
 	select {
 	case err := <-errc:
@@ -183,5 +198,51 @@ func seed(args []string) error {
 		return err
 	}
 	fmt.Printf("Seeded %s with the fictional Nordmann household for %d.\n", args[0], year)
+	return nil
+}
+
+func enroll(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: finance enroll <name>")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dbPath())
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	a, err := auth.New(st, os.Getenv("FINANCE_ORIGIN"))
+	if err != nil {
+		return err
+	}
+	link, expires, err := a.EnrollmentLink(ctx, args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Open this link on the device that should get a passkey for %q.\n", args[0])
+	fmt.Printf("It works once and expires at %s.\n\n%s\n", expires.In(time.Local).Format("15:04"), link)
+	return nil
+}
+
+func resetPasskeys(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: finance reset-passkeys <name>")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dbPath())
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	u, err := st.UserByName(ctx, args[0])
+	if err != nil {
+		return fmt.Errorf("user %q: %w", args[0], err)
+	}
+	n, err := st.ResetPasskeys(ctx, u.ID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Removed %d passkey(s) for %q and logged them out everywhere.\n", n, u.Name)
+	fmt.Printf("Run `finance enroll %s` to register a new one.\n", u.Name)
 	return nil
 }

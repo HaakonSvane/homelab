@@ -1,0 +1,72 @@
+package components
+
+import assets "github.com/HaakonSvane/homelab/finance/web"
+
+// Page is the HTML document around every page.
+templ Page(title string, tab Tab) {
+	<!DOCTYPE html>
+	<html lang="nb">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<meta name="htmx-config" content={ htmxConfig }/>
+			<meta name="apple-mobile-web-app-title" content="Finans"/>
+			<title>{ title } · Finans</title>
+			<link rel="stylesheet" href={ assets.URL("app.css") }/>
+			<script src={ assets.URL("htmx.min.js") } defer></script>
+		</head>
+		<body>
+			if tab == TabNone {
+				<main class="bare">
+					{ children... }
+				</main>
+			} else {
+				<main>
+					{ children... }
+				</main>
+				@tabs(tab)
+			}
+		</body>
+	</html>
+}
+
+// PasskeyScript loads the passkey glue; include it on pages with data-passkey buttons.
+templ PasskeyScript() {
+	<script src={ assets.URL("passkey.js") } defer></script>
+}
+
+templ tabs(active Tab) {
+	<nav class="tabs" aria-label="Hovedmeny">
+		@tabLink("/", "Oversikt", active == TabOverview) {
+			<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path>
+		}
+		@tabLink("/utgifter", "Utgifter", active == TabExpenses) {
+			<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path>
+			<path d="M9 8h6M9 12h6"></path>
+		}
+		@tabLink("/inntekt", "Inntekt", active == TabIncome) {
+			<path d="M3 17l6-6 4 4 8-8"></path>
+			<path d="M14 7h7v7"></path>
+		}
+		@tabLink("/innstillinger", "Innstillinger", active == TabSettings) {
+			<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path>
+			<circle cx="16" cy="6" r="2"></circle>
+			<circle cx="10" cy="12" r="2"></circle>
+			<circle cx="18" cy="18" r="2"></circle>
+		}
+	</nav>
+}
+
+templ tabLink(href string, label string, active bool) {
+	<a
+		href={ templ.SafeURL(href) }
+		if active {
+			aria-current="page"
+		}
+	>
+		<svg viewBox="0 0 24 24" aria-hidden="true">
+			{ children... }
+		</svg>
+		{ label }
+	</a>
+}

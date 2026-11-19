@@ -1,0 +1,63 @@
+package pages
+
+import "github.com/HaakonSvane/homelab/finance/internal/web/components"
+
+templ Login() {
+	@components.Page("Logg inn", components.TabNone) {
+		<div class="center">
+			<div class="brand">Finans</div>
+			<p class="muted">Felleskontoen vår</p>
+		</div>
+		<div class="card">
+			<button type="button" class="primary wide" data-passkey="login">Logg inn med passkey</button>
+			<p id="passkey-error" class="error" role="alert" hidden></p>
+			<noscript><p class="error">Innlogging med passkey krever JavaScript.</p></noscript>
+		</div>
+		<p class="muted small center">
+			Ny enhet? Logg inn på en enhet du allerede bruker og legg til en passkey under Innstillinger,
+			eller be om en registreringslenke.
+		</p>
+		@components.PasskeyScript()
+	}
+}
+
+templ Enroll(displayName string, token string) {
+	@components.Page("Registrer passkey", components.TabNone) {
+		<div class="center">
+			<div class="brand">Finans</div>
+		</div>
+		<div class="card">
+			<h1>Hei, { displayName }!</h1>
+			<p>
+				Registrer en passkey for å logge inn med Face ID eller Touch ID. Med iCloud-nøkkelring
+				blir den med til de andre Apple-enhetene dine.
+			</p>
+			<p class="muted small">Lenken kan bare brukes én gang og utløper etter 30 minutter.</p>
+			<button type="button" class="primary wide" data-passkey="register" data-token={ token }>Registrer passkey</button>
+			<p id="passkey-error" class="error" role="alert" hidden></p>
+			<noscript><p class="error">Registrering av passkey krever JavaScript.</p></noscript>
+		</div>
+		@components.PasskeyScript()
+	}
+}
+
+templ EnrollInvalid() {
+	@components.Page("Ugyldig lenke", components.TabNone) {
+		<div class="card">
+			<h1>Lenken virker ikke</h1>
+			<p>Registreringslenken er ugyldig, allerede brukt eller utløpt.</p>
+			<p class="muted">Be om en ny lenke, eller logg inn på en enhet du allerede bruker og legg til en passkey under Innstillinger.</p>
+			<p><a class="button" href="/logg-inn">Til innlogging</a></p>
+		</div>
+	}
+}
+
+templ Error(title string, message string) {
+	@components.Page(title, components.TabNone) {
+		<div class="card">
+			<h1>{ title }</h1>
+			<p>{ message }</p>
+			<p><a class="button" href="/">Til forsiden</a></p>
+		</div>
+	}
+}

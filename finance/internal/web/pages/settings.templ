@@ -1,0 +1,67 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/HaakonSvane/homelab/finance/internal/store"
+	"github.com/HaakonSvane/homelab/finance/internal/web/components"
+)
+
+// SettingsError is a validation error shown under one passkey's rename form.
+type SettingsError struct {
+	PasskeyID int64
+	Message   string
+}
+
+templ Settings(u store.User, passkeys []store.Passkey, formErr SettingsError) {
+	@components.Page("Innstillinger", components.TabSettings) {
+		<h1>Innstillinger</h1>
+		<h2>Passkeys</h2>
+		<p class="muted small">
+			Passkeys lar deg logge inn med Face ID eller Touch ID. De som ligger i iCloud-nøkkelringen
+			følger med til de andre Apple-enhetene dine.
+		</p>
+		<div class="card">
+			if len(passkeys) == 0 {
+				<p class="muted">Ingen passkeys registrert.</p>
+			}
+			<ul class="list">
+				for _, p := range passkeys {
+					<li>
+						<strong>
+							if p.Label == "" {
+								Uten navn
+							} else {
+								{ p.Label }
+							}
+						</strong>
+						<div class="muted small">
+							Lagt til { components.Date(p.CreatedAt) } ·
+							if p.LastUsedAt.IsZero() {
+								ikke brukt ennå
+							} else {
+								sist brukt { components.DateTime(p.LastUsedAt) }
+							}
+						</div>
+						<form class="inline-form" method="post" action={ templ.SafeURL(fmt.Sprintf("/innstillinger/passkeys/%d/navn", p.ID)) }>
+							<input name="label" value={ p.Label } maxlength="60" aria-label="Nytt navn på passkey" autocomplete="off"/>
+							<button type="submit">Gi nytt navn</button>
+						</form>
+						if formErr.PasskeyID == p.ID && formErr.Message != "" {
+							<p class="error small" role="alert">{ formErr.Message }</p>
+						}
+					</li>
+				}
+			</ul>
+		</div>
+		<button type="button" class="wide" data-passkey="register">Legg til passkey på denne enheten</button>
+		<p id="passkey-error" class="error" role="alert" hidden></p>
+		<h2>Konto</h2>
+		<div class="card">
+			<p>Logget inn som <strong>{ u.DisplayName }</strong>.</p>
+			<form method="post" action="/logg-ut">
+				<button type="submit">Logg ut</button>
+			</form>
+		</div>
+		@components.PasskeyScript()
+	}
+}
