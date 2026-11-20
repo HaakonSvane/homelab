@@ -267,3 +267,7 @@ progress::-moz-progress-bar { background: var(--ink); border-radius: 2px; }
 .verdict.not-covered { border-color: var(--danger); }
 .verdict.not-covered .verdict-head .icon { color: var(--danger); }
 p.payday { display: flex; align-items: center; margin-top: -0.5rem; }
+
+/* Deleting an expense */
+button.danger { border-color: var(--danger); color: var(--danger); }
+.form-extra h3.delete-head { margin-top: 1.5rem; }

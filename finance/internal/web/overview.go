@@ -160,27 +160,61 @@ func payerLabel(d ledger.DueItem, names map[ledger.UserID]string) string {
 	}
 }
 
-// payPeriod finds a user's current pay period and its free money (the leftover in
-// the settlement of the period's budget month). ok is false without a payday.
-func payPeriod(in ledger.Input, u store.User, today budget.Date) (p budget.Period, leftover money.Ore, ok bool, err error) {
+// payPeriod finds a user's current pay period and its free money: the leftover in
+// the settlement of the month whose salary started the period. ok is false without
+// a payday.
+//
+// Before payday, the period started on last month's salary. If that month predates
+// what has been registered (incomes and expenses usually start "from this month"),
+// there are no figures for it, and its leftover would be a meaningless 0; the first
+// month with figures is used instead, and figuresFrom says so (zero otherwise).
+func payPeriod(in ledger.Input, u store.User, today budget.Date) (p budget.Period, leftover money.Ore, figuresFrom month.Month, ok bool, err error) {
 	inc, has := ledger.IncomeAt(in.Incomes[u.ID], today.MonthOf())
 	if !has || inc.Payday == 0 {
-		return budget.Period{}, 0, false, nil
+		return budget.Period{}, 0, 0, false, nil
 	}
 	p = budget.PeriodAt(today, inc.Payday)
-	st, err := ledger.Settle(in, p.BudgetMonth)
+	m := p.BudgetMonth
+	if start := recordsStart(in, u.ID); m < start {
+		m, figuresFrom = start, start
+	}
+	st, err := ledger.Settle(in, m)
 	if err != nil {
-		return budget.Period{}, 0, false, err
+		return budget.Period{}, 0, 0, false, err
 	}
 	r, _ := st.User(u.ID)
-	return p, r.Leftover, true, nil
+	return p, r.Leftover, figuresFrom, true, nil
+}
+
+// recordsStart is the first month with figures for a user: the later of their first
+// income and the first expense. A leftover before then would leave something out.
+func recordsStart(in ledger.Input, user ledger.UserID) month.Month {
+	var start month.Month
+	for _, v := range in.Incomes[user] {
+		if start.IsZero() || v.ValidFrom < start {
+			start = v.ValidFrom
+		}
+	}
+	var firstExpense month.Month
+	for _, e := range in.Expenses {
+		for _, v := range e.Versions {
+			if firstExpense.IsZero() || v.ValidFrom < firstExpense {
+				firstExpense = v.ValidFrom
+			}
+		}
+	}
+	return max(start, firstExpense)
 }
 
 func freeSpending(in ledger.Input, u store.User, today budget.Date) (pages.FreeSpending, error) {
 	fs := pages.FreeSpending{Name: u.DisplayName}
-	p, leftover, ok, err := payPeriod(in, u, today)
+	p, leftover, figuresFrom, ok, err := payPeriod(in, u, today)
 	if err != nil || !ok {
 		return fs, err
+	}
+	if !figuresFrom.IsZero() {
+		fs.Note = "Regnet ut fra tallene for " + month.Name(figuresFrom.Month()) + ", siden det ikke er registrert noe for " +
+			month.Name(p.BudgetMonth.Month()) + "."
 	}
 	left := p.DaysLeft(today)
 	fs.HasPayday = true
@@ -194,7 +228,7 @@ func freeSpending(in ledger.Input, u store.User, today budget.Date) (pages.FreeS
 
 func buyForm(in ledger.Input, u store.User, today budget.Date, input overviewInput) (pages.BuyForm, error) {
 	f := pages.BuyForm{Price: input.price, Balance: input.balance, Errors: map[string]string{}}
-	p, leftover, ok, err := payPeriod(in, u, today)
+	p, leftover, _, ok, err := payPeriod(in, u, today)
 	f.HasPayday = ok
 	if err != nil || !ok || !input.buy {
 		return f, err

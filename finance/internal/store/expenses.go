@@ -181,6 +181,17 @@ func (s *Store) SetExpenseEnd(ctx context.Context, id int64, end month.Month) er
 	})
 }
 
+// DeleteExpense removes an expense with its whole version history (the versions and
+// their shares go with it through ON DELETE CASCADE). This is the one deliberate
+// exception to "history is never rewritten": the web UI asks for explicit
+// confirmation, and ending an expense (SetExpenseEnd) is the normal way to stop one.
+func (s *Store) DeleteExpense(ctx context.Context, id int64) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM expenses WHERE id = ?`, id)
+		return requireOneRow(res, err)
+	})
+}
+
 func requireOneRow(res sql.Result, err error) error {
 	if err != nil {
 		return err

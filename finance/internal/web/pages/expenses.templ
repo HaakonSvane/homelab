@@ -85,6 +85,37 @@ templ freqOption(f ExpenseForm, value string, label string) {
 	</label>
 }
 
+func deleteConfirmText(name string) string {
+	return "Slette «" + name + "» for godt?\n\nAll historikk for utgiften slettes også, og tidligere måneder regnes om uten den. Dette kan ikke angres."
+}
+
+func versionCount(n int) string {
+	if n == 1 {
+		return "1 versjon"
+	}
+	return fmt.Sprintf("%d versjoner", n)
+}
+
+// ConfirmDeleteExpense is the confirmation step when JavaScript (and so the
+// browser's confirm dialog) isn't available.
+templ ConfirmDeleteExpense(c DeleteConfirm) {
+	@components.Page("Slett utgift", components.TabExpenses) {
+		<h1>Slette «{ c.Name }»?</h1>
+		<p>All historikk for utgiften slettes også ({ versionCount(c.Versions) }), og tidligere måneder regnes om uten den. Dette kan ikke angres.</p>
+		<p class="muted small">Skal den bare stoppe fra en måned, avslutt den i stedet.</p>
+		<form method="post" action={ templ.SafeURL(c.Action) }>
+			<input type="hidden" name="bekreft" value="ja"/>
+			<div class="actions">
+				<button type="submit" class="danger with-icon">
+					@components.Icon("trash")
+					Slett for godt
+				</button>
+				<a class="button quiet" href="/utgifter">Avbryt</a>
+			</div>
+		</form>
+	}
+}
+
 templ fieldError(msg string) {
 	if msg != "" {
 		<p class="error small" role="alert">{ msg }</p>
@@ -252,16 +283,28 @@ templ ExpenseFormBody(f ExpenseForm) {
 						<button type="submit">Gjenoppta</button>
 					</form>
 				} else {
+					<label for="end">Siste måned</label>
 					<form class="inline-form" method="post" action={ templ.SafeURL(f.Action + "/avslutt") }>
-						<select name="end" aria-label="Siste måned">
+						<select id="end" name="end">
 							for _, o := range f.EndMonths {
-								<option value={ o.Value } selected?={ o.Selected }>Siste måned: { o.Label }</option>
+								<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
 							}
 						</select>
 						<button type="submit">Avslutt</button>
 					</form>
 				}
 				@fieldError(f.Errors["end"])
+				<h3 class="delete-head">Slett</h3>
+				<p class="muted small">
+					Sletter utgiften og hele historikken, og tidligere måneder regnes om uten den. Skal den bare stoppe
+					fra en måned, bruk Avslutt over.
+				</p>
+				<form method="post" action={ templ.SafeURL(f.Action + "/slett") } hx-post={ f.Action + "/slett" } hx-confirm={ deleteConfirmText(f.Name) } hx-vals={ `{"bekreft":"ja"}` }>
+					<button type="submit" class="danger with-icon">
+						@components.Icon("trash")
+						Slett utgift
+					</button>
+				</form>
 				if len(f.History) > 0 {
 					<details>
 						<summary>Historikk</summary>

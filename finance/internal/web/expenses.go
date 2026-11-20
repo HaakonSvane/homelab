@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 	"sort"
@@ -553,6 +554,28 @@ func (s *Server) endExpense(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	redirectAfterPost(w, r, "/utgifter")
+}
+
+// deleteExpense deletes an expense and its history, but only with bekreft=ja. The
+// button sends that after the browser's confirm dialog (htmx hx-confirm); without
+// JavaScript the first POST shows a confirmation page that sends it instead.
+func (s *Server) deleteExpense(w http.ResponseWriter, r *http.Request) {
+	e, ok := s.loadExpense(w, r)
+	if !ok {
+		return
+	}
+	if r.PostFormValue("bekreft") != "ja" {
+		render(w, r, http.StatusOK, pages.ConfirmDeleteExpense(pages.DeleteConfirm{
+			Name: e.Name, Action: fmt.Sprintf("/utgifter/%d/slett", e.ID), Versions: len(e.Versions),
+		}))
+		return
+	}
+	if err := s.store.DeleteExpense(r.Context(), e.ID); err != nil {
+		serverError(w, r, err)
+		return
+	}
+	slog.Info("expense deleted", "id", e.ID, "name", e.Name, "by", currentUser(r).Name)
 	redirectAfterPost(w, r, "/utgifter")
 }
 

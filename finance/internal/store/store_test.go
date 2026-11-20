@@ -301,3 +301,35 @@ func TestLedgerRoundTrip(t *testing.T) {
 		t.Errorf("transfers %v / %v, felleskonto %v; want 8 000 / 10 000 / 18 000", ra.Transfer, rb.Transfer, st.Felleskonto)
 	}
 }
+
+func TestDeleteExpenseRemovesHistory(t *testing.T) {
+	s := newStore(t)
+	if err := s.Seed(ctx, 2026); err != nil {
+		t.Fatal(err)
+	}
+	count := func(table string) int {
+		var n int
+		s.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n)
+		return n
+	}
+	exps, _ := s.Expenses(ctx)
+	var mat Expense // two versions, two shares each
+	for _, e := range exps {
+		if e.Name == "Mat og husholdning" {
+			mat = e
+		}
+	}
+	expenses, versions, shares := count("expenses"), count("expense_versions"), count("expense_version_shares")
+	if err := s.DeleteExpense(ctx, mat.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := []int{count("expenses"), count("expense_versions"), count("expense_version_shares")}; got[0] != expenses-1 || got[1] != versions-2 || got[2] != shares-4 {
+		t.Errorf("after delete: expenses/versions/shares = %v, want %d/%d/%d", got, expenses-1, versions-2, shares-4)
+	}
+	if _, err := s.Expense(ctx, mat.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deleted expense still loads: %v", err)
+	}
+	if err := s.DeleteExpense(ctx, mat.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("delete twice: %v", err)
+	}
+}

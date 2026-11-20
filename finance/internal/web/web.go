@@ -53,6 +53,7 @@ func New(st *store.Store, a *auth.Auth) http.Handler {
 	private("GET /utgifter/{id}/endre", s.editExpense)
 	private("POST /utgifter/{id}", s.updateExpense)
 	private("POST /utgifter/{id}/avslutt", s.endExpense)
+	private("POST /utgifter/{id}/slett", s.deleteExpense)
 	private("GET /inntekt", s.income)
 	private("GET /inntekt/{id}/endre", s.editIncome)
 	private("POST /inntekt/{id}", s.saveIncome)

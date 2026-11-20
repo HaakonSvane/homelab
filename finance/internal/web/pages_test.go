@@ -303,3 +303,44 @@ func TestStandaloneForms(t *testing.T) {
 	h := newSeededHarness(t)
 	mustContain(t, h.get("/utgifter/ny", http.StatusOK), `id="expense-form"`, "Gjelder fra", `name="kind"`, "Andel for Kari (%)")
 }
+
+func TestDeleteExpense(t *testing.T) {
+	h := newSeededHarness(t)
+	e := expenseByName(t, h.st, "Internett")
+	id := strconv.FormatInt(e.ID, 10)
+
+	// The edit sheet offers it behind the browser's confirm dialog.
+	mustContain(t, h.get("/utgifter/"+id+"/endre", http.StatusOK),
+		`hx-post="/utgifter/`+id+`/slett"`, `hx-confirm="Slette «Internett» for godt?`, "All historikk for utgiften slettes også", "Slett utgift")
+
+	// Without confirmation (no JavaScript): a confirmation page, nothing deleted.
+	status, body, _ := h.do("POST", "/utgifter/"+id+"/slett", "")
+	if status != http.StatusOK {
+		t.Fatalf("unconfirmed: %d", status)
+	}
+	mustContain(t, body, "Slette «Internett»?", "1 versjon", `name="bekreft" value="ja"`, "Slett for godt")
+	if _, err := h.st.Expense(context.Background(), e.ID); err != nil {
+		t.Fatalf("deleted without confirmation: %v", err)
+	}
+
+	// Confirmed: gone, and the settlement no longer counts it.
+	status, _, hdr := h.do("POST", "/utgifter/"+id+"/slett", form("bekreft", "ja"))
+	if status != http.StatusSeeOther || hdr.Get("Location") != "/utgifter" {
+		t.Fatalf("confirmed: %d → %s", status, hdr.Get("Location"))
+	}
+	if _, err := h.st.Expense(context.Background(), e.ID); err == nil {
+		t.Fatal("still there")
+	}
+	mustContain(t, h.get("/", http.StatusOK), nb("29 425,00")) // 29 974 − 549
+	h.do("POST", "/utgifter/"+id+"/slett", form("bekreft", "ja"))
+	if status, _, _ := h.do("POST", "/utgifter/"+id+"/slett", form("bekreft", "ja")); status != http.StatusNotFound {
+		t.Errorf("deleting again: %d, want 404", status)
+	}
+
+	// Through htmx the page is told to reload.
+	gym := expenseByName(t, h.st, "Treningssenter")
+	status, _, hdr = h.do("POST", "/utgifter/"+strconv.FormatInt(gym.ID, 10)+"/slett", form("bekreft", "ja"), "HX-Request", "true")
+	if status != http.StatusNoContent || hdr.Get("HX-Redirect") != "/utgifter" {
+		t.Errorf("htmx delete: %d, HX-Redirect %q", status, hdr.Get("HX-Redirect"))
+	}
+}

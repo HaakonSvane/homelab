@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // setKariPayday re-saves Kari's July 2026 income (44 500 kr, the version in force in
@@ -107,4 +108,33 @@ func TestBufferAndUpcoming(t *testing.T) {
 	if status, _, _ := h.do("POST", "/felleskonto/saldo", form("balance", "-5")); status != http.StatusUnprocessableEntity {
 		t.Errorf("negative balance: %d", status)
 	}
+}
+
+// Regression: income and expenses registered from this month, with a payday later
+// in the month. Before payday the period started on last month's salary, which has
+// no figures; the free money must come from this month, not read as 0 kr.
+func TestFreeSpendingBeforeFirstRegisteredPayday(t *testing.T) {
+	h := newHarness(t)
+	oslo, _ := time.LoadLocation("Europe/Oslo")
+	time.Local = oslo
+	h.st.Now = func() time.Time { return time.Date(2026, 11, 20, 12, 0, 0, 0, oslo) }
+	h.register(newSoftAuthenticator(t, testOrigin, testRPID), h.enrollToken("kari"))
+	kari := "/inntekt/" + strconv.FormatInt(int64(h.kari.ID), 10)
+	if status, _, _ := h.do("POST", kari, form("amount", "40 000", "valid_from", "2026-11", "payday", "26")); status != http.StatusSeeOther {
+		t.Fatalf("income: %d", status)
+	}
+	if status, _, _ := h.do("POST", "/utgifter", form("name", "Husleie", "kind", "shared", "amount", "10 000", "freq", "monthly",
+		"share", "50", "payer", "0", "valid_from", "2026-11")); status != http.StatusSeeOther {
+		t.Fatalf("expense: %d", status)
+	}
+	// Period 26 Oct (Mon) → 26 Nov (Thu): 31 days, 6 left. November's free money is
+	// 40 000 − 5 000 = 35 000 kr: 35 000 × 6/31 = 6 774,19 kr now, 1 129,03 kr a day.
+	body := h.get("/", http.StatusOK)
+	mustContain(t, body, nb("6 774,19 kr"), nb("1 129,03 kr"), "om 6 dager",
+		"Regnet ut fra tallene for november, siden det ikke er registrert noe for oktober.")
+	if strings.Contains(body, nb("0,00 kr")+"</span> per dag") {
+		t.Error("still shows 0 kr per day")
+	}
+	_, body, _ = h.do("POST", "/kan-jeg-kjope", form("price", "500", "balance", "8 000"))
+	mustContain(t, body, "Ja, det går fint.")
 }

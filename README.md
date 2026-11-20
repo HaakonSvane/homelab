@@ -205,6 +205,8 @@ All of these run as `docker compose -f finance/compose.yml exec finance /finance
 | `rename-user <handle> <Display name>` | Change the name shown in the app |
 | `backup` | Write a backup now (it also happens nightly) |
 
+In the app, an expense that should stop is ended from a month (Avslutt) so earlier months keep it. "Slett utgift" removes it and its whole history after a confirmation; to undo a deletion, restore last night's backup (below).
+
 ### Backups and restore
 
 The app writes `finance/data/backups/finance-YYYY-MM-DD.db` every night at 03:30 (and on startup if the newest is more than a day old) using SQLite's `VACUUM INTO`, keeping the newest 30. The home status check warns if the newest backup is more than 36 hours old. The backups sit on the same SD card as the database, so they protect against mistakes and corruption, not against losing the card.

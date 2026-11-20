@@ -41,6 +41,7 @@ type FreeSpending struct {
 	DaysLeft     string // "11 dager"
 	Elapsed      int    // days into the period, for <progress>
 	Days         int
+	Note         string // set when the figures come from another month than the salary's
 }
 
 // BuyForm is the "Kan jeg kjøpe?" calculator. Nothing typed here is stored.
@@ -187,6 +188,13 @@ func FirstError(errs map[string]string) string {
 		}
 	}
 	return ""
+}
+
+// DeleteConfirm is the no-JavaScript confirmation page for deleting an expense.
+type DeleteConfirm struct {
+	Name     string
+	Action   string
+	Versions int
 }
 
 // IncomeView is the Inntekt page.

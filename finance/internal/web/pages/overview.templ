@@ -34,6 +34,9 @@ templ Overview(v OverviewView) {
 								Bør være igjen nå med jevnt forbruk. Lønning { f.NextPayday }, om { f.DaysLeft } ·
 								<span class="num">{ components.Kr(f.NormalPerDay) }</span> per dag.
 							</p>
+							if f.Note != "" {
+								<p class="muted small">{ f.Note }</p>
+							}
 						} else {
 							<p class="muted small">Legg inn lønningsdag under <a href="/inntekt">Inntekt</a>, så vises det her.</p>
 						}

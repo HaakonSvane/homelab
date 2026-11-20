@@ -56,7 +56,7 @@ A Go web app at `https://finans.home.arpa` (Caddy → `finance:8080`) for the ho
 - **Money and maths:** amounts are `money.Ore` (int64 øre); splits are basis points (5000 = 50 %). There are no floats anywhere.
   - All settlement maths lives in `internal/ledger` as pure functions. It sums exactly in 1/120000 øre and rounds half-even only once per person, assigning leftover øre so that the transfers always sum to the felleskonto total. Change it only with tests.
   - Effective dating also lives in the ledger: the version for month M is the one with the greatest `valid_from <= M`, and `end_month` is inclusive. The store only loads and saves the history.
-- **History:** never rewrite it. An edit saves a new version from a chosen month; saving for a month that already has a version replaces only that one. Schema changes are new numbered files in `internal/store/migrations/`; never edit a deployed one.
+- **History:** never rewrite it. An edit saves a new version from a chosen month; saving for a month that already has a version replaces only that one. The one exception is deleting an expense, which removes its whole history. It requires an explicit confirmation (`bekreft=ja`: htmx `hx-confirm`, or a confirmation page without JS). Ending an expense is the normal way to stop one. Schema changes are new numbered files in `internal/store/migrations/`; never edit a deployed one.
 - **Auth:** passkeys only (`go-webauthn`), and the relying party ID is `finans.home.arpa`. Changing `FINANCE_ORIGIN` breaks every passkey. Users and enrollment links come from the CLI, never the web UI.
 - **Front end:**
   - Templates are templ: edit `.templ` files, run `./dev.sh tool templ generate`, and commit the generated `*_templ.go`.
