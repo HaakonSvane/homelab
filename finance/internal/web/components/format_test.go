@@ -14,7 +14,8 @@ func TestGreeting(t *testing.T) {
 		{0, 0, "Sen økt, Kari?"}, {4, 59, "Sen økt, Kari?"},
 		{5, 0, "God morgen, Kari"}, {9, 59, "God morgen, Kari"},
 		{10, 0, "God formiddag, Kari"}, {11, 59, "God formiddag, Kari"},
-		{12, 0, "God ettermiddag, Kari"}, {17, 59, "God ettermiddag, Kari"},
+		{12, 0, "God ettermiddag, Kari"}, {14, 59, "God ettermiddag, Kari"},
+		{15, 0, "Hei, Kari!"}, {17, 59, "Hei, Kari!"},
 		{18, 0, "God kveld, Kari"}, {23, 59, "God kveld, Kari"},
 	} {
 		if got := Greeting(time.Date(2026, 11, 20, c.hour, c.min, 0, 0, oslo), "Kari"); got != c.want {

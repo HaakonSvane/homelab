@@ -21,8 +21,9 @@ const (
 const htmxConfig = `{"includeIndicatorStyles":false,"globalViewTransitions":true}`
 
 // Greeting greets name for the time of day of t (pass local time): God morgen
-// (05–10), God formiddag (10–12), God ettermiddag (12–18), God kveld (18–24), and
-// after midnight a wry "Sen økt, <name>?" — "God natt" is a goodbye, not a hello.
+// (05–10), God formiddag (10–12), God ettermiddag (12–15), a plain "Hei, <name>!"
+// in the late afternoon (15–18) where that is what people actually say, God kveld
+// (18–24), and after midnight a wry "Sen økt, <name>?" ("God natt" is a goodbye).
 func Greeting(t time.Time, name string) string {
 	switch h := t.Hour(); {
 	case h < 5:
@@ -31,8 +32,10 @@ func Greeting(t time.Time, name string) string {
 		return "God morgen, " + name
 	case h < 12:
 		return "God formiddag, " + name
-	case h < 18:
+	case h < 15:
 		return "God ettermiddag, " + name
+	case h < 18:
+		return "Hei, " + name + "!"
 	default:
 		return "God kveld, " + name
 	}
