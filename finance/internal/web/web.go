@@ -15,7 +15,6 @@ import (
 
 	"github.com/HaakonSvane/homelab/finance/internal/auth"
 	"github.com/HaakonSvane/homelab/finance/internal/store"
-	"github.com/HaakonSvane/homelab/finance/internal/web/components"
 	"github.com/HaakonSvane/homelab/finance/internal/web/pages"
 	assets "github.com/HaakonSvane/homelab/finance/web"
 )
@@ -45,9 +44,16 @@ func New(st *store.Store, a *auth.Auth) http.Handler {
 
 	// Logged in only.
 	private := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, auth.RequireUser(h)) }
-	private("GET /{$}", s.home)
-	private("GET /utgifter", s.comingSoon("Utgifter", components.TabExpenses))
-	private("GET /inntekt", s.comingSoon("Inntekt", components.TabIncome))
+	private("GET /{$}", s.overview)
+	private("GET /utgifter", s.expenses)
+	private("GET /utgifter/ny", s.newExpense)
+	private("POST /utgifter", s.createExpense)
+	private("GET /utgifter/{id}/endre", s.editExpense)
+	private("POST /utgifter/{id}", s.updateExpense)
+	private("POST /utgifter/{id}/avslutt", s.endExpense)
+	private("GET /inntekt", s.income)
+	private("GET /inntekt/{id}/endre", s.editIncome)
+	private("POST /inntekt/{id}", s.saveIncome)
 	private("GET /innstillinger", s.settings)
 	private("POST /innstillinger/passkeys/{id}/navn", s.renamePasskey)
 
@@ -145,17 +151,6 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render(w, r, http.StatusOK, pages.Enroll(u.DisplayName, token))
-}
-
-func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	u := currentUser(r)
-	render(w, r, http.StatusOK, pages.Home(u, components.Greeting(s.store.Now().In(time.Local), u.DisplayName)))
-}
-
-func (s *Server) comingSoon(title string, tab components.Tab) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		render(w, r, http.StatusOK, pages.ComingSoon(title, tab))
-	}
 }
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {

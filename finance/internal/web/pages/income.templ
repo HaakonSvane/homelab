@@ -1,0 +1,88 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/HaakonSvane/homelab/finance/internal/web/components"
+)
+
+templ Income(v IncomeView) {
+	@components.Page("Inntekt", components.TabIncome) {
+		<h1>Inntekt</h1>
+		@components.MonthNavigation(v.Nav)
+		<p class="muted small">Netto per måned, det som faktisk kommer inn på kontoen.</p>
+		for _, u := range v.Users {
+			<section>
+				<div class="group-head">
+					<h2>{ u.Name }</h2>
+					@sheetButton(fmt.Sprintf("/inntekt/%d/endre", u.ID), "#income-form", "") {
+						Endre
+					}
+				</div>
+				if u.Has {
+					<p class="figure num">{ components.Kr(u.Current) }</p>
+				} else {
+					<p class="muted">Ingen inntekt registrert for denne måneden.</p>
+				}
+				if len(u.History) > 0 {
+					<table class="ledger history">
+						<tbody>
+							for _, h := range u.History {
+								<tr class={ templ.KV("current", h.Current) }>
+									<th scope="row">
+										Fra { h.From }
+										<div class="muted small">
+											if h.Note != "" {
+												{ h.Note } ·
+											}
+											{ h.By }
+										</div>
+									</th>
+									<td class="num">{ components.Amount(h.Amount) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+			</section>
+		}
+	}
+}
+
+templ IncomeFormPage(f IncomeForm) {
+	@components.Page("Endre inntekt", components.TabIncome) {
+		@IncomeFormBody(f)
+	}
+}
+
+templ IncomeFormBody(f IncomeForm) {
+	<div id="income-form" class="form-body">
+		<h2>Inntekt for { f.Name }</h2>
+		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#income-form" hx-select="#income-form" hx-swap="outerHTML" novalidate>
+			@fieldError(f.Errors["form"])
+			<div class="field">
+				<label for="amount">Netto per måned (kr)</label>
+				<input id="amount" name="amount" value={ f.Amount } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ f.Errors["amount"] != "" }/>
+				@fieldError(f.Errors["amount"])
+			</div>
+			<div class="field">
+				<label for="valid_from">Fra hvilken måned?</label>
+				<select id="valid_from" name="valid_from">
+					for _, o := range f.ValidFrom {
+						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+					}
+				</select>
+				<p class="muted small">Tidligere måneder beholder det gamle beløpet.</p>
+				@fieldError(f.Errors["valid_from"])
+			</div>
+			<div class="field">
+				<label for="note">Notat (valgfritt)</label>
+				<input id="note" name="note" value={ f.Note } maxlength="200" autocomplete="off" placeholder="For eksempel lønnsoppgjør"/>
+				@fieldError(f.Errors["note"])
+			</div>
+			<div class="actions">
+				<button type="submit" class="primary">Lagre</button>
+				<a class="button quiet" href="/inntekt">Avbryt</a>
+			</div>
+		</form>
+	</div>
+}

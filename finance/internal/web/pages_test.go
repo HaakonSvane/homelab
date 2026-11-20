@@ -1,0 +1,269 @@
+package web
+
+import (
+	"context"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/HaakonSvane/homelab/finance/internal/money"
+	"github.com/HaakonSvane/homelab/finance/internal/month"
+	"github.com/HaakonSvane/homelab/finance/internal/store"
+)
+
+// newSeededHarness serves the fictional seed household (see store.Seed) with the
+// clock fixed at 20 November 2026, logged in as Kari.
+func newSeededHarness(t *testing.T) *harness {
+	t.Helper()
+	ctx := context.Background()
+	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "finance.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	oslo, _ := time.LoadLocation("Europe/Oslo")
+	time.Local = oslo
+	st.Now = func() time.Time { return time.Date(2026, 11, 20, 12, 0, 0, 0, oslo) }
+	if err := st.Seed(ctx, 2026); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarnessFor(t, st)
+	h.kari, _ = st.UserByName(ctx, "kari")
+	h.ola, _ = st.UserByName(ctx, "ola")
+	h.register(newSoftAuthenticator(t, testOrigin, testRPID), h.enrollToken("kari"))
+	return h
+}
+
+// nb turns the plain spaces in a test string into the NBSPs nb-NO formatting uses.
+func nb(s string) string { return strings.ReplaceAll(s, " ", " ") }
+
+func (h *harness) get(path string, want int) string {
+	h.t.Helper()
+	status, body, _ := h.do("GET", path, "")
+	if status != want {
+		h.t.Fatalf("GET %s: %d, want %d\n%s", path, status, want, body)
+	}
+	return body
+}
+
+func mustContain(t *testing.T, body string, wants ...string) {
+	t.Helper()
+	for _, w := range wants {
+		if !strings.Contains(body, w) {
+			t.Errorf("missing %q", w)
+		}
+	}
+}
+
+func expenseByName(t *testing.T, st *store.Store, name string) store.Expense {
+	t.Helper()
+	es, err := st.Expenses(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range es {
+		if e.Name == name {
+			return e
+		}
+	}
+	t.Fatalf("no expense %q", name)
+	return store.Expense{}
+}
+
+func form(kv ...string) string {
+	var b strings.Builder
+	for i := 0; i+1 < len(kv); i += 2 {
+		if i > 0 {
+			b.WriteByte('&')
+		}
+		b.WriteString(kv[i] + "=" + urlEscape(kv[i+1]))
+	}
+	return b.String()
+}
+
+func urlEscape(s string) string {
+	r := strings.NewReplacer(" ", "+", ",", "%2C", "&", "%26", "=", "%3D")
+	return r.Replace(s)
+}
+
+var allMonths = []string{"month", "1", "month", "2", "month", "3", "month", "4", "month", "5", "month", "6",
+	"month", "7", "month", "8", "month", "9", "month", "10", "month", "11", "month", "12"}
+
+func TestOverviewShowsSettlement(t *testing.T) {
+	h := newSeededHarness(t)
+	body := h.get("/", http.StatusOK) // November 2026 by the fixed clock
+	mustContain(t, body,
+		"God ettermiddag, Kari</h1>",
+		"november 2026",
+		"Til felleskontoen",
+		nb("15 517,50"), nb("14 456,50"), nb("29 974,00"), // transfers and total (see store.TestSeedNovember)
+		nb("24 194,50"), nb("26 943,50"), // leftovers
+		"Forfaller i november", "Boliglån", "Ola betaler", "Kari (privat)",
+		"Ola betaler i tillegg <span class=\"num\">" + nb("1 600,00 kr") + "</span>",
+	)
+	// July: no kindergarten bill, and Kari's raise has applied.
+	july := h.get("/?m=2026-07", http.StatusOK)
+	mustContain(t, july, "Forfaller i juli", nb("44 500,00"))
+	if strings.Contains(july, "Barnehage") {
+		t.Error("kindergarten listed as due in July")
+	}
+	if strings.Contains(body, "Mangler inntekt") {
+		t.Error("missing-income notice shown although both have income")
+	}
+}
+
+func TestExpensesList(t *testing.T) {
+	h := newSeededHarness(t)
+	body := h.get("/utgifter", http.StatusOK)
+	mustContain(t, body,
+		"Felles", "Privat · Kari", "Privat · Ola",
+		nb("31 963,00"), // shared monthly total
+		"Halvårlig (mar og sep)", nb("4 800,00 kr") + " per gang",
+		"Kari 40 %, Ola 60 %", // Bilforsikring split
+		"Avsluttede og kommende (1)", "Avsluttet etter august 2026", "Treningssenter",
+		`hx-get="/utgifter/ny"`, `popovertarget="sheet"`,
+	)
+}
+
+func TestCreateExpense(t *testing.T) {
+	h := newSeededHarness(t)
+	before, _ := h.st.Expenses(context.Background())
+
+	body := form(append([]string{"name", "Strømmeavtale", "category", "Bolig", "kind", "shared", "amount", "1 249,50",
+		"share", "50", "payer", "0", "valid_from", "2026-11"}, allMonths...)...)
+	status, _, hdr := h.do("POST", "/utgifter", body)
+	if status != http.StatusSeeOther || hdr.Get("Location") != "/utgifter" {
+		t.Fatalf("create: %d → %s", status, hdr.Get("Location"))
+	}
+	e := expenseByName(t, h.st, "Strømmeavtale")
+	if v := e.Versions[0]; v.Amount != 124950 || v.Due != month.Monthly || v.Payer != 0 || len(v.Shares) != 2 || v.Shares[0].BP != 5000 {
+		t.Errorf("stored version = %+v", v)
+	}
+
+	// Through htmx the response tells the page to reload instead of redirecting.
+	body = form(append([]string{"name", "Sparing ferie", "kind", "private", "owner", strconv.FormatInt(int64(h.kari.ID), 10),
+		"amount", "500", "valid_from", "2027-01"}, allMonths...)...)
+	status, _, hdr = h.do("POST", "/utgifter", body, "HX-Request", "true")
+	if status != http.StatusNoContent || hdr.Get("HX-Redirect") != "/utgifter?m=2027-01" {
+		t.Fatalf("htmx create: %d, HX-Redirect %q", status, hdr.Get("HX-Redirect"))
+	}
+	if e := expenseByName(t, h.st, "Sparing ferie"); e.Owner != h.kari.ID || e.Versions[0].ValidFrom != month.MustParse("2027-01") {
+		t.Errorf("private expense = %+v", e)
+	}
+	after, _ := h.st.Expenses(context.Background())
+	if len(after) != len(before)+2 {
+		t.Errorf("expenses %d → %d", len(before), len(after))
+	}
+}
+
+func TestCreateExpenseValidation(t *testing.T) {
+	h := newSeededHarness(t)
+	before, _ := h.st.Expenses(context.Background())
+	status, body, _ := h.do("POST", "/utgifter", form("name", "", "kind", "shared", "amount", "tusen", "share", "120", "payer", "0", "valid_from", "2026-11"))
+	if status != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d", status)
+	}
+	mustContain(t, body, "Gi utgiften et navn.", "Skriv beløpet som", "Velg minst én måned.", "Andelen må være et tall fra 0 til 100.",
+		`value="tusen"`) // typed input is kept
+	if after, _ := h.st.Expenses(context.Background()); len(after) != len(before) {
+		t.Error("invalid expense was stored")
+	}
+}
+
+func TestPresetsAndSharePreviewDoNotSave(t *testing.T) {
+	h := newSeededHarness(t)
+	before, _ := h.st.Expenses(context.Background())
+	status, body, _ := h.do("POST", "/utgifter", form("name", "Kommunale", "kind", "shared", "amount", "3000", "month", "3",
+		"share", "62,5", "payer", "0", "valid_from", "2026-11", "preset", "semiannual"))
+	if status != http.StatusOK {
+		t.Fatalf("preset: %d", status)
+	}
+	mustContain(t, body, `value="3" checked`, `value="9" checked`, `value="Kommunale"`, "Ola dekker 37,5 %.")
+	if strings.Contains(body, `value="4" checked`) || strings.Contains(body, "Velg") && strings.Contains(body, `role="alert"`) {
+		t.Error("preset should set exactly March and September, without validation errors")
+	}
+	_, body, _ = h.do("POST", "/utgifter", form("kind", "shared", "share", "75", "preview", "1"))
+	mustContain(t, body, `id="share-hint"`, "Ola dekker 25 %.")
+	if after, _ := h.st.Expenses(context.Background()); len(after) != len(before) {
+		t.Error("preset or preview saved an expense")
+	}
+}
+
+func TestEditExpenseVersionsAndLabels(t *testing.T) {
+	h := newSeededHarness(t)
+	strom := expenseByName(t, h.st, "Strøm")
+	path := "/utgifter/" + strconv.FormatInt(strom.ID, 10)
+	ola := strconv.FormatInt(int64(h.ola.ID), 10)
+
+	page := h.get(path+"/endre", http.StatusOK)
+	mustContain(t, page, "Fra hvilken måned?", "Historikk", nb(`value="1 600,00"`))
+
+	post := func(name, amount, from string) {
+		t.Helper()
+		status, body, _ := h.do("POST", path, form(append([]string{"name", name, "category", "Bolig", "amount", amount,
+			"share", "50", "payer", ola, "valid_from", from}, allMonths...)...))
+		if status != http.StatusSeeOther {
+			t.Fatalf("edit: %d\n%s", status, body)
+		}
+	}
+	post("Strøm", "1 800", "2026-12")          // new price from December
+	post("Strøm", "1 850", "2026-12")          // correct the December version
+	post("Strøm (Tibber)", "1 600", "2026-11") // rename only: November terms unchanged
+
+	e := expenseByName(t, h.st, "Strøm (Tibber)")
+	if len(e.Versions) != 2 || e.Versions[0].Amount != money.Kr(1600) || e.Versions[1].Amount != money.Kr(1850) ||
+		e.Versions[1].ValidFrom != month.MustParse("2026-12") {
+		t.Errorf("versions = %+v", e.Versions)
+	}
+}
+
+func TestEndAndResumeExpense(t *testing.T) {
+	h := newSeededHarness(t)
+	e := expenseByName(t, h.st, "Internett")
+	path := "/utgifter/" + strconv.FormatInt(e.ID, 10) + "/avslutt"
+	if status, _, _ := h.do("POST", path, form("end", "2026-12")); status != http.StatusSeeOther {
+		t.Fatalf("end: %d", status)
+	}
+	mustContain(t, h.get("/utgifter?m=2027-01", http.StatusOK), "Avsluttet etter desember 2026")
+	status, body, _ := h.do("POST", path, form("end", "2025-12"))
+	if status != http.StatusUnprocessableEntity || !strings.Contains(body, "kan ikke være før den siste endringen") {
+		t.Errorf("end before last version: %d", status)
+	}
+	if status, _, _ := h.do("POST", path, form("action", "resume")); status != http.StatusSeeOther {
+		t.Fatalf("resume: %d", status)
+	}
+	if e := expenseByName(t, h.st, "Internett"); !e.End.IsZero() {
+		t.Errorf("not resumed: end %v", e.End)
+	}
+	h.get("/utgifter/999999/endre", http.StatusNotFound)
+}
+
+func TestIncomePage(t *testing.T) {
+	h := newSeededHarness(t)
+	body := h.get("/inntekt", http.StatusOK)
+	mustContain(t, body, nb("44 500,00 kr"), nb("47 000,00 kr"), "Fra juli 2026", "Lønnsoppgjør", "registrert av Kari")
+
+	kari := "/inntekt/" + strconv.FormatInt(int64(h.kari.ID), 10)
+	mustContain(t, h.get(kari+"/endre", http.StatusOK), `id="income-form"`, nb(`value="44 500,00"`))
+	status, _, hdr := h.do("POST", kari, form("amount", "46 000", "valid_from", "2027-01", "note", "Ny jobb"))
+	if status != http.StatusSeeOther || hdr.Get("Location") != "/inntekt?m=2027-01" {
+		t.Fatalf("save income: %d → %s", status, hdr.Get("Location"))
+	}
+	mustContain(t, h.get("/inntekt?m=2027-01", http.StatusOK), nb("46 000,00 kr"), "Ny jobb")
+	// November is unchanged: history is never rewritten.
+	mustContain(t, h.get("/inntekt?m=2026-11", http.StatusOK), nb("44 500,00 kr"))
+
+	status, body, _ = h.do("POST", kari, form("amount", "", "valid_from", "2027-01"))
+	if status != http.StatusUnprocessableEntity || !strings.Contains(body, "Fyll inn beløpet.") {
+		t.Errorf("empty amount: %d", status)
+	}
+	h.get("/inntekt/999/endre", http.StatusNotFound)
+}
+
+func TestStandaloneForms(t *testing.T) {
+	h := newSeededHarness(t)
+	mustContain(t, h.get("/utgifter/ny", http.StatusOK), `id="expense-form"`, "Gjelder fra", `name="kind"`, "Andel for Kari (%)")
+}

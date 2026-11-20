@@ -1,0 +1,233 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/HaakonSvane/homelab/finance/internal/web/components"
+)
+
+templ Expenses(v ExpensesView) {
+	@components.Page("Utgifter", components.TabExpenses) {
+		<div class="page-head">
+			<h1>Utgifter</h1>
+			@sheetButton("/utgifter/ny", "#expense-form", "primary") {
+				Ny utgift
+			}
+		</div>
+		@components.MonthNavigation(v.Nav)
+		if v.Empty {
+			<p class="muted">Ingen utgifter ennå. Legg inn de faste utgiftene deres, felles og private.</p>
+		}
+		for _, g := range v.Groups {
+			<section>
+				<div class="group-head">
+					<h2>{ g.Title }</h2>
+					<span class="num muted small">{ components.Amount(g.Monthly) } per mnd</span>
+				</div>
+				@expenseTable(g.Rows, false)
+			</section>
+		}
+		if len(v.Inactive) > 0 {
+			<details class="inactive">
+				<summary>Avsluttede og kommende ({ fmt.Sprint(len(v.Inactive)) })</summary>
+				@expenseTable(v.Inactive, true)
+			</details>
+		}
+		if !v.Empty {
+			<p class="muted small footnote">Beløpene er per måned. En regning som kommer to ganger i året, teller med en sjettedel hver måned.</p>
+		}
+	}
+}
+
+templ expenseTable(rows []ExpenseRow, inactive bool) {
+	<table class="ledger">
+		<tbody>
+			for _, row := range rows {
+				<tr>
+					<th scope="row">
+						@sheetButton(fmt.Sprintf("/utgifter/%d/endre", row.ID), "#expense-form", "linklike") {
+							{ row.Name }
+						}
+						<div class="muted small">
+							if inactive {
+								{ row.Status } ·
+							}
+							{ row.Details }
+						</div>
+					</th>
+					<td class="num">{ components.Amount(row.Monthly) }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+// sheetButton opens the bottom sheet (popover, no script) and has htmx load the form
+// at href into it.
+templ sheetButton(href string, selector string, class string) {
+	<button type="button" class={ class } popovertarget="sheet" hx-get={ href } hx-target="#sheet-body" hx-select={ selector } hx-swap="innerHTML" hx-indicator="#sheet">
+		{ children... }
+	</button>
+}
+
+templ fieldError(msg string) {
+	if msg != "" {
+		<p class="error small" role="alert">{ msg }</p>
+	}
+}
+
+templ ExpenseFormPage(f ExpenseForm) {
+	@components.Page(expenseTitle(f), components.TabExpenses) {
+		@ExpenseFormBody(f)
+	}
+}
+
+func expenseTitle(f ExpenseForm) string {
+	if f.ID == 0 {
+		return "Ny utgift"
+	}
+	return "Endre utgift"
+}
+
+templ ExpenseFormBody(f ExpenseForm) {
+	<div id="expense-form" class="form-body">
+		<h2>
+			if f.ID == 0 {
+				Ny utgift
+			} else {
+				{ f.Name }
+			}
+		</h2>
+		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#expense-form" hx-select="#expense-form" hx-swap="outerHTML" novalidate>
+			@fieldError(f.Errors["form"])
+			<div class="field">
+				<label for="name">Navn</label>
+				<input id="name" name="name" value={ f.Name } maxlength="100" autocomplete="off" autofocus?={ f.Focus == "name" }/>
+				@fieldError(f.Errors["name"])
+			</div>
+			<div class="field">
+				<label for="category">Kategori</label>
+				<input id="category" name="category" value={ f.Category } list="categories" maxlength="50" autocomplete="off" placeholder="For eksempel Bolig" autofocus?={ f.Focus == "category" }/>
+				<datalist id="categories">
+					for _, c := range f.Categories {
+						<option value={ c }></option>
+					}
+				</datalist>
+				@fieldError(f.Errors["category"])
+			</div>
+			if f.KindFixed {
+				<p class="muted small">{ f.KindLabel }. Hvem utgiften gjelder, kan ikke endres; avslutt den og legg inn en ny i stedet.</p>
+			} else {
+				<fieldset class="field choices">
+					<legend>Type</legend>
+					<label><input type="radio" name="kind" value="shared" checked?={ f.Kind == "shared" } autofocus?={ f.Focus == "kind" }/> Felles</label>
+					<label><input type="radio" name="kind" value="private" checked?={ f.Kind == "private" }/> Privat</label>
+					@fieldError(f.Errors["kind"])
+				</fieldset>
+				<div class="field private-only">
+					<label for="owner">Tilhører</label>
+					<select id="owner" name="owner" autofocus?={ f.Focus == "owner" }>
+						for _, o := range f.Owners {
+							<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+						}
+					</select>
+					@fieldError(f.Errors["owner"])
+				</div>
+			}
+			<div class="field">
+				<label for="amount">Beløp per gang (kr)</label>
+				<input id="amount" name="amount" value={ f.Amount } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ f.Focus == "amount" }/>
+				@fieldError(f.Errors["amount"])
+			</div>
+			<fieldset class="field">
+				<legend>Forfaller</legend>
+				<div class="presets">
+					<button type="submit" name="preset" value="monthly" class="chip">Hver måned</button>
+					<button type="submit" name="preset" value="semiannual" class="chip">Halvårlig</button>
+					<button type="submit" name="preset" value="yearly" class="chip">Årlig</button>
+					<button type="submit" name="preset" value="eleven" class="chip">11 mnd (ikke juli)</button>
+				</div>
+				<div class="month-grid">
+					for _, m := range f.Months {
+						<label><input type="checkbox" name="month" value={ fmt.Sprint(m.Value) } checked?={ m.Checked } autofocus?={ f.Focus == "due" && m.Value == 1 }/> { m.Label }</label>
+					}
+				</div>
+				@fieldError(f.Errors["due"])
+			</fieldset>
+			if !f.KindFixed || f.Kind == "shared" {
+				<div class="shared-only">
+					if f.UserB != "" {
+						<div class="field">
+							<label for="share">Andel for { f.UserA } (%)</label>
+							<input id="share" name="share" value={ f.ShareA } inputmode="decimal" autocomplete="off" autofocus?={ f.Focus == "share" } hx-post={ f.Action } hx-trigger="input changed delay:300ms" hx-target="#share-hint" hx-select="#share-hint" hx-swap="outerHTML" hx-vals={ `{"preview":"1"}` }/>
+							<p id="share-hint" class="muted small">{ f.ShareBHint }</p>
+							@fieldError(f.Errors["share"])
+						</div>
+					}
+					<div class="field">
+						<label for="payer">Betales av</label>
+						<select id="payer" name="payer" autofocus?={ f.Focus == "payer" }>
+							for _, o := range f.Payers {
+								<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+							}
+						</select>
+						@fieldError(f.Errors["payer"])
+					</div>
+				</div>
+			}
+			<div class="field">
+				<label for="valid_from">
+					if f.ID == 0 {
+						Gjelder fra
+					} else {
+						Fra hvilken måned?
+					}
+				</label>
+				<select id="valid_from" name="valid_from" autofocus?={ f.Focus == "valid_from" }>
+					for _, o := range f.ValidFrom {
+						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+					}
+				</select>
+				if f.ID != 0 {
+					<p class="muted small">Tidligere måneder beholder de gamle beløpene. Navn og kategori endres for hele historikken.</p>
+				}
+				@fieldError(f.Errors["valid_from"])
+			</div>
+			<div class="actions">
+				<button type="submit" class="primary">Lagre</button>
+				<a class="button quiet" href="/utgifter">Avbryt</a>
+			</div>
+		</form>
+		if f.ID != 0 {
+			<div class="form-extra">
+				<h3>Avslutt</h3>
+				if f.Ended != "" {
+					<p>Avsluttet etter { f.Ended }.</p>
+					<form method="post" action={ templ.SafeURL(f.Action + "/avslutt") }>
+						<input type="hidden" name="action" value="resume"/>
+						<button type="submit">Gjenoppta</button>
+					</form>
+				} else {
+					<form class="inline-form" method="post" action={ templ.SafeURL(f.Action + "/avslutt") }>
+						<select name="end" aria-label="Siste måned">
+							for _, o := range f.EndMonths {
+								<option value={ o.Value } selected?={ o.Selected }>Siste måned: { o.Label }</option>
+							}
+						</select>
+						<button type="submit">Avslutt</button>
+					</form>
+				}
+				@fieldError(f.Errors["end"])
+				if len(f.History) > 0 {
+					<details>
+						<summary>Historikk</summary>
+						<ul class="history">
+							for _, h := range f.History {
+								<li class="small">{ h }</li>
+							}
+						</ul>
+					</details>
+				}
+			</div>
+		}
+	</div>
+}

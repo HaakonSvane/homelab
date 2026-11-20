@@ -113,3 +113,97 @@ details[open] > summary { color: var(--muted); }
 .intro { text-align: center; margin-bottom: 2.5rem; }
 .intro .wordmark { display: block; font-size: 2.6rem; margin-bottom: 0.2rem; }
 .help { margin-top: 2rem; text-align: center; }
+
+/* Ledger tables: name left, amount right, hairlines between rows, totals ruled. */
+table.ledger { width: 100%; border-collapse: collapse; margin: 0 0 0.75rem; }
+table.ledger th, table.ledger td { padding: 0.7rem 0; border-bottom: 1px solid var(--rule); text-align: left; font-weight: 400; vertical-align: baseline; }
+table.ledger tbody tr:first-child > * { border-top: 1px solid var(--rule); }
+table.ledger td.num { text-align: right; padding-left: 1rem; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+table.ledger tfoot th, table.ledger tfoot td { border-bottom: 0; padding-top: 0.8rem; }
+table.ledger td.total { font-weight: 600; text-decoration: underline double; text-underline-offset: 0.3em; }
+table.ledger .small { margin-top: 0.1rem; }
+table.ledger.history tr:not(.current) th > :first-child, table.ledger.history tr:not(.current) { color: var(--muted); }
+
+.page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.page-head h1 { margin-bottom: 1rem; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; }
+.group-head h2 { margin: 0; }
+.figure { font-family: var(--serif); font-size: 1.7rem; margin: 0.25rem 0 1rem; }
+.notice { border-left: 2px solid var(--accent); padding: 0.1rem 0 0.1rem 0.85rem; margin: 0 0 1.5rem; }
+.callout { font-family: var(--serif); font-size: 1.15rem; margin: 0.5rem 0 1rem; }
+.footnote { margin-top: 1.5rem; }
+details.inactive { margin-top: 0.5rem; }
+details.inactive > summary { margin-bottom: 0.75rem; }
+
+/* Month navigation */
+.monthnav { display: flex; justify-content: space-between; align-items: baseline; margin: -0.25rem 0 1.75rem; font-size: 0.95rem; }
+.monthnav > a { color: var(--muted); text-decoration: none; padding: 0.4rem 0; min-width: 4rem; }
+.monthnav > a[rel="next"] { text-align: right; }
+.monthnav > a:hover { color: var(--ink); }
+.monthnav-current { text-align: center; }
+.monthnav-current a { display: block; }
+
+/* Buttons that look like links (expense names open the edit sheet) */
+button.linklike { all: unset; cursor: pointer; color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 0.25em; }
+button.linklike:hover { text-decoration-color: currentColor; }
+button.linklike:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.button.quiet, button.quiet { border-color: transparent; color: var(--muted); }
+
+/* Forms */
+.form-body h2 { margin-bottom: 1.25rem; }
+.field { margin: 0 0 1.1rem; }
+fieldset { border: 0; padding: 0; margin: 0 0 1.1rem; min-width: 0; }
+legend { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; padding: 0; }
+.choices { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.choices legend { width: 100%; }
+.choices label, .month-grid label { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ink); font-size: 0.95rem; margin: 0; }
+input[type="radio"], input[type="checkbox"] { width: 1.1rem; height: 1.1rem; min-height: 0; margin: 0; accent-color: var(--ink); }
+.month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem 0.5rem; margin-top: 0.75rem; }
+.presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+button.chip { min-height: 2.1rem; padding: 0.2rem 0.75rem; font-size: 0.85rem; border-color: var(--rule); color: var(--muted); }
+button.chip:hover { border-color: var(--ink); color: var(--ink); }
+.actions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
+.actions .primary { flex: 1; }
+.form-extra { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); }
+.form-extra h3 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+.form-extra details { margin-top: 1.25rem; }
+.history { margin: 0.6rem 0 0; padding-left: 1.1rem; color: var(--muted); }
+.history li { margin-bottom: 0.4rem; }
+select { appearance: none; -webkit-appearance: none; padding-right: 2rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 1rem) 55%, calc(100% - 0.7rem) 55%; background-size: 0.3rem 0.3rem; background-repeat: no-repeat; }
+
+/* Only the fields that apply to the chosen kind, decided in CSS (no script). */
+form:has(input[name="kind"][value="shared"]:checked) .private-only,
+form:has(input[name="kind"][value="private"]:checked) .shared-only { display: none; }
+
+/* Bottom sheet: a <dialog popover> in the top layer, opened by popovertarget. */
+dialog.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 36rem;
+  max-height: 92dvh;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 1px solid var(--rule);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+dialog.sheet:popover-open { display: block; }
+dialog.sheet:focus-visible { outline: none; } /* the sheet itself takes focus on open */
+/* While htmx loads a form into the sheet, hide whatever form was there before. */
+dialog.sheet.htmx-request #sheet-body { visibility: hidden; }
+dialog.sheet.htmx-request::before { content: "Laster …"; color: var(--muted); }
+dialog.sheet::backdrop { background: rgb(0 0 0 / 0.28); }
+@media (min-width: 40rem) {
+  dialog.sheet { inset: 0; margin: auto; border-bottom: 1px solid var(--rule); border-radius: 12px; height: fit-content; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  dialog.sheet { transition: translate 0.22s ease-out, opacity 0.22s ease-out, display 0.22s allow-discrete, overlay 0.22s allow-discrete; }
+  dialog.sheet:not(:popover-open) { translate: 0 1.5rem; opacity: 0; }
+  @starting-style { dialog.sheet:popover-open { translate: 0 1.5rem; opacity: 0; } }
+}

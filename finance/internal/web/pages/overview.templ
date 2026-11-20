@@ -1,0 +1,95 @@
+package pages
+
+import (
+	"github.com/HaakonSvane/homelab/finance/internal/month"
+	"github.com/HaakonSvane/homelab/finance/internal/web/components"
+	"strings"
+)
+
+templ Overview(v OverviewView) {
+	@components.Page("Oversikt", components.TabOverview) {
+		<h1>{ v.Greeting }</h1>
+		@components.MonthNavigation(v.Nav)
+		if v.NoExpenses {
+			<p class="notice">Ingen utgifter registrert ennå. <a href="/utgifter">Legg inn de faste utgiftene</a>, så ser dere hva hver skal overføre.</p>
+		}
+		if len(v.MissingIncome) > 0 {
+			<p class="notice">Mangler inntekt for { strings.Join(v.MissingIncome, " og ") }. <a href="/inntekt">Registrer inntekt</a>, så ser dere hva som blir igjen.</p>
+		}
+		<section>
+			<h2>Til felleskontoen</h2>
+			<table class="ledger">
+				<tbody>
+					for _, u := range v.Users {
+						<tr>
+							<th scope="row">{ u.Name }</th>
+							<td class="num">{ components.Amount(u.ToFelleskonto) }</td>
+						</tr>
+					}
+				</tbody>
+				<tfoot>
+					<tr>
+						<th scope="row">Felleskontoen får</th>
+						<td class="num total">{ components.Amount(v.Felleskonto) }</td>
+					</tr>
+				</tfoot>
+			</table>
+			for _, re := range v.Reimbursements {
+				<p class="callout">{ re.From } skylder { re.To } <span class="num">{ components.Kr(re.Amount) }</span> denne måneden.</p>
+			}
+			for _, u := range v.Users {
+				if u.PaidDirect > 0 {
+					<p class="muted small">{ u.Name } betaler i tillegg <span class="num">{ components.Kr(u.PaidDirect) }</span> av felles regninger direkte (månedlig snitt).</p>
+				}
+			}
+			<p class="muted small">Beløpene er like hver måned: uregelmessige regninger er jevnet ut over året, så felleskontoen bygger opp en buffer.</p>
+		</section>
+		<section>
+			<h2>Igjen etter faste utgifter</h2>
+			<table class="ledger">
+				<tbody>
+					for _, u := range v.Users {
+						<tr>
+							<th scope="row">
+								{ u.Name }
+								<div class="muted small">
+									Inntekt { components.Amount(u.Income) } − felles { components.Amount(u.Obligation) } − privat { components.Amount(u.Private) }
+								</div>
+							</th>
+							<td class="num">{ components.Amount(u.Leftover) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</section>
+		<section>
+			<h2>Forfaller i { month.Name(v.Nav.Month.Month()) }</h2>
+			if len(v.Due) == 0 {
+				<p class="muted">Ingen regninger forfaller denne måneden.</p>
+			} else {
+				<table class="ledger">
+					<tbody>
+						for _, d := range v.Due {
+							<tr>
+								<th scope="row">
+									{ d.Name }
+									<div class="muted small">{ d.Payer }</div>
+								</th>
+								<td class="num">{ components.Amount(d.Amount) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				<p class="muted small">
+					Fra felleskontoen går <span class="num">{ components.Kr(v.DueFromFelleskonto) }</span> ut og
+					<span class="num">{ components.Kr(v.Felleskonto) }</span> inn:
+					if v.Buffer >= 0 {
+						bufferen øker med <span class="num">{ components.Kr(v.Buffer) }</span>.
+					} else {
+						bufferen brukes med <span class="num">{ components.Kr(-v.Buffer) }</span>.
+					}
+				</p>
+			}
+		</section>
+	}
+}

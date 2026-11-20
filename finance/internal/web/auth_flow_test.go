@@ -52,6 +52,14 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	h := newHarnessFor(t, st)
+	h.kari, h.ola = kari, ola
+	return h
+}
+
+// newHarnessFor serves st over TLS with a cookie-keeping client that doesn't follow redirects.
+func newHarnessFor(t *testing.T, st *store.Store) *harness {
+	t.Helper()
 	a, err := auth.New(st, testOrigin)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +69,7 @@ func newHarness(t *testing.T) *harness {
 	client := srv.Client()
 	client.Jar, _ = cookiejar.New(nil)
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &harness{t: t, st: st, auth: a, client: client, base: srv.URL, kari: kari, ola: ola}
+	return &harness{t: t, st: st, auth: a, client: client, base: srv.URL}
 }
 
 // do sends a request; a body starting with '{' is sent as JSON, anything else as a form.

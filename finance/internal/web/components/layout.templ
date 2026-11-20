@@ -27,6 +27,11 @@ templ Page(title string, tab Tab) {
 						{ children... }
 					</main>
 				</div>
+				// Bottom sheet for add/edit forms: opened declaratively by buttons with
+				// popovertarget="sheet", filled by htmx. No custom JavaScript.
+				<dialog id="sheet" class="sheet" popover aria-label="Skjema">
+					<div id="sheet-body"></div>
+				</dialog>
 			}
 		</body>
 	</html>
