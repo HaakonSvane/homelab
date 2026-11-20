@@ -7,7 +7,8 @@ thresholded here, so the model only summarizes and never has to judge raw number
 Each section is {"status": "ok"|"warn"|"crit"|"unknown", ...facts}. A section that
 fails to collect becomes "unknown" with an "error" field instead of aborting the run.
 Nothing here writes anywhere: docker inspect/logs/exec of read-only queries, sqlite in
--readonly mode, a retained-MQTT read, and GET requests to the UniFi API.
+-readonly mode, a retained-MQTT read, GET requests to the UniFi API, and a directory
+listing of the finance app's backups.
 """
 
 import json
@@ -31,6 +32,8 @@ CPU_TEMP_WARN_C, CPU_TEMP_CRIT_C = 70, 80
 GRAVITY_MAX_AGE_DAYS = 8
 DHT_STALE_SECONDS = 10 * 60  # reader publishes every 120s
 HUMIDITY_WARN_PCT = 65       # sustained RH above this risks mould in the cabinet
+FINANCE_BACKUP_DIR = os.path.join(REPO, "finance", "data", "backups")
+FINANCE_BACKUP_MAX_AGE_HOURS = 36  # written nightly at 03:30, so older means a missed night
 
 # FTL query status codes that mean "blocked" (gravity, regex, denylist, CNAME, special domains, ...).
 PIHOLE_BLOCKED_STATUSES = "(1,4,5,6,7,8,9,10,11,15,16,18)"
@@ -378,6 +381,27 @@ def network():
     }
 
 
+def finance():
+    """Nightly backups written by the finance app itself (VACUUM INTO, newest 30 kept)."""
+    names = []
+    if os.path.isdir(FINANCE_BACKUP_DIR):
+        names = [n for n in os.listdir(FINANCE_BACKUP_DIR) if re.fullmatch(r"finance-\d{4}-\d{2}-\d{2}\.db", n)]
+    if not names:
+        return {"status": "warn", "backups": 0, "note": "no backups yet"}
+    paths = [os.path.join(FINANCE_BACKUP_DIR, n) for n in names]
+    newest = max(paths, key=os.path.getmtime)
+    written = os.path.getmtime(newest)
+    age_hours = round((time.time() - written) / 3600, 1)
+    return {
+        "status": "warn" if age_hours > FINANCE_BACKUP_MAX_AGE_HOURS else "ok",
+        "backups": len(names),
+        "newest": os.path.basename(newest),
+        "newest_written_at": iso(written),
+        "newest_age_hours": age_hours,
+        "newest_kb": round(os.path.getsize(newest) / 1024),
+    }
+
+
 def repo():
     _, porcelain, _ = run(["git", "-C", REPO, "status", "--porcelain"])
     _, counts, _ = run(["git", "-C", REPO, "rev-list", "--left-right", "--count", "origin/main...HEAD"])
@@ -399,6 +423,7 @@ SECTIONS = {
     "climate": climate,
     "doorbell": doorbell,
     "network": network,
+    "finance": finance,
     "repo": repo,
 }
 

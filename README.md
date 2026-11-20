@@ -18,7 +18,7 @@ Services running on the home Raspberry Pi. Each service lives in its own directo
 - `caddy/` — reverse proxy. The only service bound to host ports 80/443. Routes friendly hostnames under `home.arpa` to each service's web UI, with HTTPS via Caddy's own internal CA.
 - `homebridge/` — HomeKit bridge, exposing the DHT22 readings (via MQTT) as Apple Home accessories. Runs with `network_mode: host` — see below, it's a deliberate exception to how every other service is networked.
 - `scrypted/` — exposes the UniFi Protect doorbell to Apple Home (live view, two-way talk, ring notifications, HomeKit Secure Video). Also `network_mode: host`, for the same reason as Homebridge — see "Scrypted" below.
-- `finance/` — "Finans", a small web app (Go, SQLite, passkey login) at `https://finans.home.arpa` that works out each person's monthly transfer to the shared expense account. Under construction.
+- `finance/` — "Finans", a small web app (Go, SQLite, passkey login) at `https://finans.home.arpa` where the two of us register income and fixed expenses and see what each transfers to the shared expense account (felleskonto) every month. See "Finance (felleskonto)" below.
 
 ## Accessing services by hostname
 
@@ -157,11 +157,74 @@ HomeKit discovery is easy to break at the router/AP level. On a UniFi Cloud Gate
 - **Multicast DNS (mDNS) Proxy** and **IGMP snooping** settings only matter if the Pi and your Apple devices sit on *different* VLANs — leave them alone on a flat single-LAN setup.
 - **Zone-Based Firewall** (current UniFi OS default) already allows all traffic within one zone/VLAN, so no custom firewall rules should be needed unless you're running the Pi on an isolated VLAN — if so, that needs explicit rules for UDP 5353 and HAP's dynamic TCP ports, not just mDNS reflection.
 
+## Finance (felleskonto)
+
+`finance/` is a Go web app (stdlib `net/http`, templ, htmx, SQLite via `modernc.org/sqlite`, passkeys via `go-webauthn`) served at `https://finans.home.arpa`. The interface is Norwegian; the code is English. Each month it works out:
+
+- what each person transfers to the felleskonto,
+- any reimbursement between us, when one person pays more shared bills directly than their share,
+- and what each person has left after fixed costs.
+
+Shared expenses are split by percentage and paid either from the felleskonto or directly by one person. Private expenses (including savings) only affect their owner's leftover. Irregular bills are smoothed: an expense due *n* times a year counts *amount × n/12* every month, so the felleskonto builds a buffer for them. Incomes and expenses change through versions that take effect from a chosen month, so earlier months are never rewritten.
+
+DNS and TLS need no extra setup: the Pi-hole wildcard already resolves `finans.home.arpa`, and Caddy's `local_certs` covers it. Each device only needs Caddy's CA trusted once (see above).
+
+### One-time setup
+
+```bash
+mkdir -p finance/data && sudo chown 65532:65532 finance/data   # the image runs as distroless "nonroot"
+docker compose -f finance/compose.yml up -d --build
+
+# create the two users (handle, then display name), then a one-time passkey link for each
+docker compose -f finance/compose.yml exec finance /finance add-user <handle> <Display name>
+docker compose -f finance/compose.yml exec finance /finance enroll <handle>
+```
+
+`enroll` prints a link that works once and expires after 30 minutes. Open it on the phone that should get the passkey and tap "Registrer passkey". With iCloud Keychain the passkey syncs to that person's other Apple devices; any other device can be added under Innstillinger while logged in.
+
+Passkeys are bound to `finans.home.arpa` (`FINANCE_ORIGIN` in `finance/compose.yml`). Never change it: every registered passkey would stop working.
+
+### Day to day
+
+All of these run as `docker compose -f finance/compose.yml exec finance /finance <command>`:
+
+| Command | What it does |
+|---|---|
+| `enroll <handle>` | New one-time passkey link (for a new device without a synced passkey) |
+| `reset-passkeys <handle>` | Recovery: removes that person's passkeys and logs them out everywhere; follow with `enroll` |
+| `rename-user <handle> <Display name>` | Change the name shown in the app |
+| `backup` | Write a backup now (it also happens nightly) |
+
+### Backups and restore
+
+The app writes `finance/data/backups/finance-YYYY-MM-DD.db` every night at 03:30 (and on startup if the newest is more than a day old) using SQLite's `VACUUM INTO`, keeping the newest 30. The home status check warns if the newest backup is more than 36 hours old. The backups sit on the same SD card as the database, so they protect against mistakes and corruption, not against losing the card.
+
+To restore one:
+
+```bash
+docker compose -f finance/compose.yml stop
+sudo cp finance/data/backups/finance-2026-11-20.db finance/data/finance.db
+sudo rm -f finance/data/finance.db-wal finance/data/finance.db-shm
+sudo chown 65532:65532 finance/data/finance.db
+docker compose -f finance/compose.yml start
+```
+
+### Development
+
+There is no Go toolchain on the Pi; `finance/dev.sh` runs `go` in a throwaway `golang` container as your user:
+
+```bash
+cd finance
+./dev.sh tool templ generate        # after editing any .templ file (generated *_templ.go files are committed)
+./dev.sh vet ./... && ./dev.sh test ./...
+./dev.sh run ./cmd/finance seed dev.db 2026   # fictional household in finance/dev.db (gitignored)
+```
+
 ## Home status & remote access
 
 Ask Claude Code "how's everything at home?" (or run `/home-status`) for a short health summary. It's designed to be asked from the Claude phone app.
 
-- `status/collect.py` is a read-only, stdlib-only collector that prints one JSON health report. It covers the host (temperature, disk, throttling), all seven containers, unexpected log errors, Pi-hole (24h blocked %, blocklist freshness), the DHT22 cabinet climate (latest reading plus the 24h range), the doorbell (rings, motion, known regressions), the UniFi network (devices, clients) and the repo state. Thresholds are constants at the top of the file. Log lines already triaged as harmless are in `BENIGN_LOG_PATTERNS`, each with the reason, so new kinds of errors still surface. Run it directly with `python3 -I status/collect.py`.
+- `status/collect.py` is a read-only, stdlib-only collector that prints one JSON health report. It covers the host (temperature, disk, throttling), all seven containers, unexpected log errors, Pi-hole (24h blocked %, blocklist freshness), the DHT22 cabinet climate (latest reading plus the 24h range), the doorbell (rings, motion, known regressions), the UniFi network (devices, clients), the age of the finance app's newest backup, and the repo state. Thresholds are constants at the top of the file. Log lines already triaged as harmless are in `BENIGN_LOG_PATTERNS`, each with the reason, so new kinds of errors still surface. Run it directly with `python3 -I status/collect.py`.
 - `.claude/skills/home-status/SKILL.md` is a Claude Code skill. It runs the collector in a forked sub-agent on Sonnet (cheap and fast, about $0.06 per check) and turns the JSON into a phone-friendly summary. Its `allowed-tools` lets it run the collector without a permission prompt. It never runs anything else and never attempts fixes.
 
 `status/.env` (gitignored) holds the UniFi connection:
@@ -193,7 +256,7 @@ Detach with `Ctrl+B` then `D`. Run the same `tmux new -As homelab …` command t
 From the repo root, every service follows the same pattern (swap in the service directory):
 
 ```bash
-# start (add --build if the service has a Dockerfile, e.g. dht22)
+# start (add --build if the service has a Dockerfile: dht22, finance)
 docker compose -f <service>/compose.yml up -d
 
 # view logs
@@ -214,6 +277,7 @@ docker compose -f dht22/compose.yml up -d --build
 docker compose -f caddy/compose.yml up -d
 docker compose -f homebridge/compose.yml up -d
 docker compose -f scrypted/compose.yml up -d
+docker compose -f finance/compose.yml up -d --build
 ```
 
-`pihole`, `mosquitto`, `dht22`, and `caddy` need the `homelab` network to exist first (they'll fail to start otherwise); `homebridge` and `scrypted` don't use it at all (see Homebridge networking above). Then complete the one-time setup steps above (wildcard DNS in Pi-hole, trusting Caddy's CA, the Homebridge setup wizard) before everything is reachable end to end.
+`pihole`, `mosquitto`, `dht22`, `caddy` and `finance` need the `homelab` network to exist first (they'll fail to start otherwise); `homebridge` and `scrypted` don't use it at all (see Homebridge networking above). Then complete the one-time setup steps above (wildcard DNS in Pi-hole, trusting Caddy's CA, the Homebridge setup wizard, the finance users and passkeys) before everything is reachable end to end.

@@ -1,6 +1,6 @@
 ---
 name: home-status
-description: Health check of the Pi homelab — containers, Pi-hole, DHT22 cabinet climate, UniFi Protect doorbell, UniFi network. Read-only.
+description: Health check of the Pi homelab — containers, Pi-hole, DHT22 cabinet climate, UniFi Protect doorbell, UniFi network, finance app backups. Read-only.
 when_to_use: Use when the user asks how things are at home, wants a status or health update, asks whether anything needs attention, or asks about the temperature/humidity, ad blocking, the doorbell, or the network at home.
 context: fork
 model: sonnet
@@ -23,7 +23,7 @@ The reader is usually on their phone. Keep it short and scannable.
    - `warn` → `⚠️ N thing(s) worth a look`.
    - `crit` → `🔴 N problem(s) need attention`.
    - Any section `unknown` → say which check could not run and its `error`.
-2. **Then a summary table** with one row per area, in this order: Climate, Containers, Doorbell, Pi-hole, Network, Host, Logs, Repo. Three columns: `Area` (icon + name), `Status` (the section's status as an emoji only: `ok` → ✅, `warn` → ⚠️, `crit` → 🔴, `unknown` → ❔), and `Summary` (a few words, short enough not to wrap on a phone). For example:
+2. **Then a summary table** with one row per area, in this order: Climate, Containers, Doorbell, Pi-hole, Network, Finance, Host, Logs, Repo. Three columns: `Area` (icon + name), `Status` (the section's status as an emoji only: `ok` → ✅, `warn` → ⚠️, `crit` → 🔴, `unknown` → ❔), and `Summary` (a few words, short enough not to wrap on a phone). For example:
 
    | Area | Status | Summary |
    |---|---|---|
@@ -32,6 +32,7 @@ The reader is usually on their phone. Keep it short and scannable.
    | 🔔 Doorbell | ⚠️ | 4 rings (last 18:45) · HomeKit plugin crashing |
    | 🛡️ Pi-hole | ✅ | 8.3 % of 65k blocked · 13 devices |
    | 🌐 Network | ✅ | 2/2 UniFi devices · 12 clients |
+   | 💰 Finance | ✅ | backup 6 h old · 30 kept |
    | 🖥️ Host | ✅ | 47 °C · disk 4 % · up 21 h |
    | 📜 Logs | ⚠️ | 3 unexpected Scrypted errors |
    | 🗂️ Repo | ✅ | clean, in sync |

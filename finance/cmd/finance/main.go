@@ -8,6 +8,7 @@
 //	finance rename-user <name> <display name>  change the name shown in the app
 //	finance enroll <name>                   print a one-time link to register a passkey
 //	finance reset-passkeys <name>           remove a user's passkeys and sessions (recovery)
+//	finance backup                          write a backup now (also runs nightly in serve)
 //	finance seed <db path> [year]           fill an EMPTY database with fictional dev data
 //	finance healthcheck                     exit 0 if the local /healthz answers ok (for Docker)
 //
@@ -15,6 +16,7 @@
 //
 //	FINANCE_ADDR    listen address (default :8080)
 //	FINANCE_DB      SQLite database path (default /data/finance.db)
+//	FINANCE_BACKUP_DIR  where backups go (default /data/backups); 30 are kept
 //	FINANCE_ORIGIN  public origin, e.g. https://finans.home.arpa (serve, enroll).
 //	                Its host is the passkey relying party ID: never change it.
 package main
@@ -51,6 +53,7 @@ commands:
   rename-user <name> <display name>  change the name shown in the app
   enroll <name>                   print a one-time link (30 min) to register a passkey
   reset-passkeys <name>           remove a user's passkeys and sessions (account recovery)
+  backup                          write a backup now (serve also does this nightly at 03:30)
   seed <db path> [year]           fill an empty database with fictional dev data
   healthcheck                     check that the local server answers /healthz
 `
@@ -72,6 +75,8 @@ func main() {
 		err = enroll(os.Args[2:])
 	case "reset-passkeys":
 		err = resetPasskeys(os.Args[2:])
+	case "backup":
+		err = backupNow()
 	case "seed":
 		err = seed(os.Args[2:])
 	case "healthcheck":
@@ -118,6 +123,8 @@ func serve() error {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	go nightlyBackups(ctx, st, backupDir())
+
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	slog.Info("listening", "addr", srv.Addr, "db", dbPath(), "origin", a.Origin())
@@ -267,4 +274,48 @@ func resetPasskeys(args []string) error {
 	fmt.Printf("Removed %d passkey(s) for %q and logged them out everywhere.\n", n, u.Name)
 	fmt.Printf("Run `finance enroll %s` to register a new one.\n", u.Name)
 	return nil
+}
+
+func backupDir() string { return env("FINANCE_BACKUP_DIR", "/data/backups") }
+
+func backupNow() error {
+	ctx := context.Background()
+	st, err := store.Open(ctx, dbPath())
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	path, err := st.Backup(ctx, backupDir(), store.BackupKeep)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Backup written to %s (the newest %d are kept).\n", path, store.BackupKeep)
+	return nil
+}
+
+// nightlyBackups backs the database up every night at 03:30 local time. If the
+// newest backup is more than a day old when the server starts (the Pi was off at
+// 03:30, say), it takes one right away.
+func nightlyBackups(ctx context.Context, st *store.Store, dir string) {
+	run := func() {
+		if path, err := st.Backup(ctx, dir, store.BackupKeep); err != nil {
+			slog.Error("backup failed", "err", err)
+		} else {
+			slog.Info("backup written", "path", path)
+		}
+	}
+	if latest, err := store.LatestBackup(dir); err != nil {
+		slog.Error("backup check", "err", err)
+	} else if time.Since(latest) > 24*time.Hour {
+		run()
+	}
+	for {
+		next := store.NextBackup(time.Now(), 3, 30)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Until(next)):
+			run()
+		}
+	}
 }
