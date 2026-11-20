@@ -14,7 +14,8 @@ templ Income(v IncomeView) {
 			<section>
 				<div class="group-head">
 					<h2>{ u.Name }</h2>
-					@sheetButton(fmt.Sprintf("/inntekt/%d/endre", u.ID), "#income-form", "") {
+					@sheetButton(fmt.Sprintf("/inntekt/%d/endre", u.ID), "#income-form", "with-icon") {
+						@components.Icon("pencil")
 						Endre
 					}
 				</div>

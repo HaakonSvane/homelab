@@ -9,7 +9,8 @@ templ Expenses(v ExpensesView) {
 	@components.Page("Utgifter", components.TabExpenses) {
 		<div class="page-head">
 			<h1>Utgifter</h1>
-			@sheetButton("/utgifter/ny", "#expense-form", "primary") {
+			@sheetButton("/utgifter/ny", "#expense-form", "primary with-icon") {
+				@components.Icon("plus")
 				Ny utgift
 			}
 		</div>
@@ -18,17 +19,22 @@ templ Expenses(v ExpensesView) {
 			<p class="muted">Ingen utgifter ennå. Legg inn de faste utgiftene deres, felles og private.</p>
 		}
 		for _, g := range v.Groups {
-			<section>
-				<div class="group-head">
+			<details class="group" open?={ g.Open }>
+				<summary>
 					<h2>{ g.Title }</h2>
-					<span class="num muted small">{ components.Amount(g.Monthly) } per mnd</span>
-				</div>
+					<span class="num muted small">{ components.Amount(g.Monthly) } / mnd</span>
+					@components.Icon("chevron-down")
+				</summary>
 				@expenseTable(g.Rows, false)
-			</section>
+			</details>
 		}
 		if len(v.Inactive) > 0 {
-			<details class="inactive">
-				<summary>Avsluttede og kommende ({ fmt.Sprint(len(v.Inactive)) })</summary>
+			<details class="group">
+				<summary>
+					<h2>Avsluttede og kommende</h2>
+					<span class="muted small">{ fmt.Sprint(len(v.Inactive)) }</span>
+					@components.Icon("chevron-down")
+				</summary>
 				@expenseTable(v.Inactive, true)
 			</details>
 		}
@@ -43,6 +49,9 @@ templ expenseTable(rows []ExpenseRow, inactive bool) {
 		<tbody>
 			for _, row := range rows {
 				<tr>
+					<td class="icon-cell">
+						@components.Icon(row.Icon)
+					</td>
 					<th scope="row">
 						@sheetButton(fmt.Sprintf("/utgifter/%d/endre", row.ID), "#expense-form", "linklike") {
 							{ row.Name }
@@ -67,6 +76,13 @@ templ sheetButton(href string, selector string, class string) {
 	<button type="button" class={ class } popovertarget="sheet" hx-get={ href } hx-target="#sheet-body" hx-select={ selector } hx-swap="innerHTML" hx-indicator="#sheet">
 		{ children... }
 	</button>
+}
+
+templ freqOption(f ExpenseForm, value string, label string) {
+	<label class="seg-option">
+		<input type="radio" name="freq" value={ value } checked?={ f.Freq == value } autofocus?={ f.Focus == "due" && value == "monthly" }/>
+		<span>{ label }</span>
+	</label>
 }
 
 templ fieldError(msg string) {
@@ -117,10 +133,18 @@ templ ExpenseFormBody(f ExpenseForm) {
 			if f.KindFixed {
 				<p class="muted small">{ f.KindLabel }. Hvem utgiften gjelder, kan ikke endres; avslutt den og legg inn en ny i stedet.</p>
 			} else {
-				<fieldset class="field choices">
+				<fieldset class="field">
 					<legend>Type</legend>
-					<label><input type="radio" name="kind" value="shared" checked?={ f.Kind == "shared" } autofocus?={ f.Focus == "kind" }/> Felles</label>
-					<label><input type="radio" name="kind" value="private" checked?={ f.Kind == "private" }/> Privat</label>
+					<div class="seg">
+						<label class="seg-option">
+							<input type="radio" name="kind" value="shared" checked?={ f.Kind == "shared" } autofocus?={ f.Focus == "kind" }/>
+							<span>Felles</span>
+						</label>
+						<label class="seg-option">
+							<input type="radio" name="kind" value="private" checked?={ f.Kind == "private" }/>
+							<span>Privat</span>
+						</label>
+					</div>
 					@fieldError(f.Errors["kind"])
 				</fieldset>
 				<div class="field private-only">
@@ -138,17 +162,38 @@ templ ExpenseFormBody(f ExpenseForm) {
 				<input id="amount" name="amount" value={ f.Amount } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ f.Focus == "amount" }/>
 				@fieldError(f.Errors["amount"])
 			</div>
-			<fieldset class="field">
+			<fieldset class="field freq">
 				<legend>Forfaller</legend>
-				<div class="presets">
-					<button type="submit" name="preset" value="monthly" class="chip">Hver måned</button>
-					<button type="submit" name="preset" value="semiannual" class="chip">Halvårlig</button>
-					<button type="submit" name="preset" value="yearly" class="chip">Årlig</button>
-					<button type="submit" name="preset" value="eleven" class="chip">11 mnd (ikke juli)</button>
+				<div class="seg">
+					@freqOption(f, "monthly", "Hver måned")
+					@freqOption(f, "semiannual", "Halvårlig")
+					@freqOption(f, "yearly", "Årlig")
+					@freqOption(f, "eleven", "11 mnd (ikke juli)")
 				</div>
+				<div class="freq-detail freq-semiannual">
+					<label for="semi_anchor">Hvilke måneder?</label>
+					<select id="semi_anchor" name="semi_anchor">
+						for _, o := range f.SemiMonths {
+							<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+						}
+					</select>
+				</div>
+				<div class="freq-detail freq-yearly">
+					<label for="year_anchor">Hvilken måned?</label>
+					<select id="year_anchor" name="year_anchor">
+						for _, o := range f.YearMonths {
+							<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+						}
+					</select>
+				</div>
+				<label class="disclosure">
+					<input type="radio" name="freq" value="custom" checked?={ f.Freq == "custom" }/>
+					Egendefinert
+					@components.Icon("chevron-down")
+				</label>
 				<div class="month-grid">
 					for _, m := range f.Months {
-						<label><input type="checkbox" name="month" value={ fmt.Sprint(m.Value) } checked?={ m.Checked } autofocus?={ f.Focus == "due" && m.Value == 1 }/> { m.Label }</label>
+						<label><input type="checkbox" name="month" value={ fmt.Sprint(m.Value) } checked?={ m.Checked }/> { m.Label }</label>
 					}
 				</div>
 				@fieldError(f.Errors["due"])

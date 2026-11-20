@@ -49,7 +49,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		v.Reimbursements = append(v.Reimbursements, pages.Reimbursement{From: names[re.From], To: names[re.To], Amount: re.Amount})
 	}
 	for _, d := range st.Due {
-		row := pages.DueRow{Name: d.Name, Amount: d.Amount}
+		row := pages.DueRow{Icon: components.CategoryIcon(d.Category, d.Name), Name: d.Name, Amount: d.Amount}
 		switch {
 		case d.Kind == ledger.Private:
 			row.Payer = names[d.Owner] + " (privat)"

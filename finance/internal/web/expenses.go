@@ -36,10 +36,23 @@ func (s *Server) expenses(w http.ResponseWriter, r *http.Request) {
 	names := userNames(users)
 	v := pages.ExpensesView{Nav: components.MonthNav{Path: "/utgifter", Month: m, Current: s.thisMonth()}, Empty: len(exps) == 0}
 
-	shared := &pages.ExpenseGroup{Title: "Felles"}
+	// Felles first, then the logged-in person's own expenses ("Dine utgifter"), then
+	// the other person's ("Rikkes utgifter"), which starts collapsed.
+	me := currentUser(r).ID
+	shared := &pages.ExpenseGroup{Title: "Felles", Open: true}
 	private := map[ledger.UserID]*pages.ExpenseGroup{}
+	order := []*pages.ExpenseGroup{shared}
 	for _, u := range users {
-		private[u.ID] = &pages.ExpenseGroup{Title: "Privat · " + u.DisplayName}
+		if u.ID == me {
+			private[u.ID] = &pages.ExpenseGroup{Title: "Dine utgifter", Open: true}
+			order = append(order, private[u.ID])
+		}
+	}
+	for _, u := range users {
+		if u.ID != me {
+			private[u.ID] = &pages.ExpenseGroup{Title: components.Genitive(u.DisplayName) + " utgifter"}
+			order = append(order, private[u.ID])
+		}
 	}
 	for _, e := range exps {
 		ver, active := e.At(m)
@@ -62,7 +75,7 @@ func (s *Server) expenses(w http.ResponseWriter, r *http.Request) {
 		g.Rows = append(g.Rows, row)
 		g.Monthly += row.Monthly
 	}
-	for _, g := range append([]*pages.ExpenseGroup{shared}, groupsInOrder(private, users)...) {
+	for _, g := range order {
 		if len(g.Rows) == 0 {
 			continue
 		}
@@ -75,14 +88,6 @@ func (s *Server) expenses(w http.ResponseWriter, r *http.Request) {
 		v.Groups = append(v.Groups, *g)
 	}
 	render(w, r, http.StatusOK, pages.Expenses(v))
-}
-
-func groupsInOrder(m map[ledger.UserID]*pages.ExpenseGroup, users []store.User) []*pages.ExpenseGroup {
-	out := make([]*pages.ExpenseGroup, 0, len(users))
-	for _, u := range users {
-		out = append(out, m[u.ID])
-	}
-	return out
 }
 
 func expenseRow(e ledger.Expense, v ledger.ExpenseVersion, names map[ledger.UserID]string, users []store.User) pages.ExpenseRow {
@@ -100,7 +105,8 @@ func expenseRow(e ledger.Expense, v ledger.ExpenseVersion, names map[ledger.User
 			parts = append(parts, names[v.Payer]+" betaler")
 		}
 	}
-	return pages.ExpenseRow{ID: e.ID, Name: e.Name, Details: strings.Join(parts, " · "), Monthly: ledger.MonthlyEquivalent(v.Amount, v.Due)}
+	return pages.ExpenseRow{ID: e.ID, Icon: components.CategoryIcon(e.Category, e.Name), Name: e.Name,
+		Details: strings.Join(parts, " · "), Monthly: ledger.MonthlyEquivalent(v.Amount, v.Due)}
 }
 
 // splitLabel describes a split: "delt likt", or "Haakon 60 %, Rikke 40 %".
@@ -126,13 +132,39 @@ type expenseState struct {
 	name, category, amount, share string
 	kind                          ledger.Kind
 	owner, payer                  ledger.UserID
-	due                           month.Mask
-	validFrom                     month.Month
-	errors                        map[string]string
+	// freq is the frequency choice: monthly, semiannual, yearly, eleven or custom.
+	// yearAnchor and semiAnchor (January–June) say which months for the yearly and
+	// half-yearly choices; due is the resulting mask (from the grid when custom).
+	freq                   string
+	yearAnchor, semiAnchor time.Month
+	due                    month.Mask
+	validFrom              month.Month
+	errors                 map[string]string
 }
 
 func defaultExpenseState(now month.Month, me ledger.UserID) expenseState {
-	return expenseState{kind: ledger.Shared, owner: me, due: month.Monthly, share: "50", validFrom: now, errors: map[string]string{}}
+	st := expenseState{kind: ledger.Shared, owner: me, share: "50", validFrom: now, errors: map[string]string{}}
+	st.setFrequency(month.Monthly, now.Month())
+	return st
+}
+
+// setFrequency picks the frequency choice that describes mask, so an edit form
+// opens on the right option; anything irregular is "custom" with the grid ticked.
+func (st *expenseState) setFrequency(mask month.Mask, fallback time.Month) {
+	st.due, st.yearAnchor, st.semiAnchor = mask, fallback, (fallback-1)%6+1
+	ms := mask.Months()
+	switch {
+	case mask == month.Monthly:
+		st.freq = "monthly"
+	case mask == month.ElevenMonths(time.July):
+		st.freq = "eleven"
+	case len(ms) == 1:
+		st.freq, st.yearAnchor = "yearly", ms[0]
+	case len(ms) == 2 && ms[1]-ms[0] == 6:
+		st.freq, st.semiAnchor = "semiannual", ms[0]
+	default:
+		st.freq = "custom"
+	}
 }
 
 // stateFromExpense pre-fills the edit form with the terms in effect this month (or
@@ -149,8 +181,9 @@ func stateFromExpense(e store.Expense, now month.Month, users []store.User) expe
 	}
 	st := expenseState{
 		name: e.Name, category: e.Category, kind: e.Kind, owner: e.Owner, payer: v.Payer,
-		amount: money.FormatNumber(v.Amount), due: v.Due, share: "50", validFrom: from, errors: map[string]string{},
+		amount: money.FormatNumber(v.Amount), share: "50", validFrom: from, errors: map[string]string{},
 	}
+	st.setFrequency(v.Due, from.Month())
 	for _, sh := range v.Shares {
 		if len(users) > 0 && sh.User == users[0].ID {
 			st.share = formatPercent(sh.BP)
@@ -172,40 +205,37 @@ func readExpenseForm(r *http.Request, st *expenseState, editing bool) {
 		st.owner = parseUserID(r.PostFormValue("owner"))
 	}
 	st.payer = parseUserID(r.PostFormValue("payer"))
-	st.due = 0
+	st.validFrom, _ = month.Parse(r.PostFormValue("valid_from"))
+	if n, err := strconv.Atoi(r.PostFormValue("year_anchor")); err == nil && n >= 1 && n <= 12 {
+		st.yearAnchor = time.Month(n)
+	}
+	if n, err := strconv.Atoi(r.PostFormValue("semi_anchor")); err == nil && n >= 1 && n <= 6 {
+		st.semiAnchor = time.Month(n)
+	}
+	var grid month.Mask
 	for _, raw := range r.PostForm["month"] {
 		if n, err := strconv.Atoi(raw); err == nil && n >= 1 && n <= 12 {
-			st.due |= month.MaskOf(time.Month(n))
+			grid |= month.MaskOf(time.Month(n))
 		}
 	}
-	st.validFrom, _ = month.Parse(r.PostFormValue("valid_from"))
+	st.freq = r.PostFormValue("freq")
+	switch st.freq {
+	case "monthly":
+		st.due = month.Monthly
+	case "semiannual":
+		st.due = month.Semiannual(st.semiAnchor)
+	case "yearly":
+		st.due = month.Yearly(st.yearAnchor)
+	case "eleven":
+		st.due = month.ElevenMonths(time.July)
+	default: // custom (or no choice sent): the ticked months
+		st.freq, st.due = "custom", grid
+	}
 }
 
 func parseUserID(raw string) ledger.UserID {
 	id, _ := strconv.ParseInt(raw, 10, 64)
 	return ledger.UserID(id)
-}
-
-// applyPreset sets the due months from a preset button. Half-yearly and yearly bills
-// start from the first ticked month (or the start month if every month is ticked).
-func applyPreset(st *expenseState, preset string) {
-	anchor := st.validFrom.Month()
-	if st.validFrom.IsZero() {
-		anchor = time.January
-	}
-	if ms := st.due.Months(); len(ms) > 0 && st.due != month.Monthly {
-		anchor = ms[0]
-	}
-	switch preset {
-	case "monthly":
-		st.due = month.Monthly
-	case "semiannual":
-		st.due = month.Semiannual(anchor)
-	case "yearly":
-		st.due = month.Yearly(anchor)
-	case "eleven":
-		st.due = month.ElevenMonths(time.July)
-	}
 }
 
 // validateExpense checks the form and builds the version to save.
@@ -307,8 +337,14 @@ func (s *Server) expenseFormView(st expenseState, existing *store.Expense, users
 	for _, u := range users {
 		f.Payers = append(f.Payers, pages.Option{Value: strconv.FormatInt(int64(u.ID), 10), Label: u.DisplayName + " (direkte)", Selected: u.ID == st.payer})
 	}
+	f.Freq = st.freq
 	for m := time.January; m <= time.December; m++ {
 		f.Months = append(f.Months, pages.MonthBox{Value: int(m), Label: month.ShortName(m), Checked: st.due.Has(m)})
+		f.YearMonths = append(f.YearMonths, pages.Option{Value: strconv.Itoa(int(m)), Label: month.Name(m), Selected: m == st.yearAnchor})
+		if m <= time.June {
+			f.SemiMonths = append(f.SemiMonths, pages.Option{Value: strconv.Itoa(int(m)),
+				Label: month.Name(m) + " og " + month.Name(m+6), Selected: m == st.semiAnchor})
+		}
 	}
 	if len(users) > 0 {
 		f.UserA = users[0].DisplayName
@@ -404,14 +440,12 @@ func ownerFor(st expenseState) ledger.UserID {
 	return 0
 }
 
-// formOnlyRequest handles the buttons that update the form without saving: a
-// frequency preset, or the live split preview. It reports whether it responded.
+// formOnlyRequest answers the live split preview, which re-renders the form without
+// saving. It reports whether it responded.
 func (s *Server) formOnlyRequest(w http.ResponseWriter, r *http.Request, st *expenseState, existing *store.Expense, users []store.User, exps []store.Expense) bool {
-	preset, preview := r.PostFormValue("preset"), r.PostFormValue("preview")
-	if preset == "" && preview == "" {
+	if r.PostFormValue("preview") == "" {
 		return false
 	}
-	applyPreset(st, preset)
 	render(w, r, http.StatusOK, pages.ExpenseFormPage(s.expenseFormView(*st, existing, users, exps)))
 	return true
 }

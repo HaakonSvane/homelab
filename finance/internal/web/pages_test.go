@@ -102,7 +102,7 @@ func TestOverviewShowsSettlement(t *testing.T) {
 		nb("15 517,50"), nb("14 456,50"), nb("29 974,00"), // transfers and total (see store.TestSeedNovember)
 		nb("24 194,50"), nb("26 943,50"), // leftovers
 		"Forfaller i november", "Boliglån", "Ola betaler", "Kari (privat)",
-		"Ola betaler i tillegg <span class=\"num\">" + nb("1 600,00 kr") + "</span>",
+		"Ola betaler i tillegg <span class=\"num\">"+nb("1 600,00 kr")+"</span>",
 	)
 	// July: no kindergarten bill, and Kari's raise has applied.
 	july := h.get("/?m=2026-07", http.StatusOK)
@@ -119,11 +119,14 @@ func TestExpensesList(t *testing.T) {
 	h := newSeededHarness(t)
 	body := h.get("/utgifter", http.StatusOK)
 	mustContain(t, body,
-		"Felles", "Privat · Kari", "Privat · Ola",
+		`<details class="group" open><summary><h2>Felles</h2>`,
+		`<details class="group" open><summary><h2>Dine utgifter</h2>`, // Kari is logged in
+		`<details class="group"><summary><h2>Olas utgifter</h2>`,      // the other person's start collapsed
 		nb("31 963,00"), // shared monthly total
-		"Halvårlig (mar og sep)", nb("4 800,00 kr") + " per gang",
+		"Halvårlig (mar og sep)", nb("4 800,00 kr")+" per gang",
 		"Kari 40 %, Ola 60 %", // Bilforsikring split
-		"Avsluttede og kommende (1)", "Avsluttet etter august 2026", "Treningssenter",
+		"Avsluttede og kommende", "Avsluttet etter august 2026", "Treningssenter",
+		`<path d="M3 11l9-7 9 7">`, // the house icon for Bolig
 		`hx-get="/utgifter/ny"`, `popovertarget="sheet"`,
 	)
 }
@@ -173,22 +176,55 @@ func TestCreateExpenseValidation(t *testing.T) {
 	}
 }
 
-func TestPresetsAndSharePreviewDoNotSave(t *testing.T) {
+func TestFrequencyChoices(t *testing.T) {
+	h := newSeededHarness(t)
+	create := func(name string, kv ...string) month.Mask {
+		t.Helper()
+		body := form(append([]string{"name", name, "kind", "shared", "amount", "1000", "share", "50", "payer", "0", "valid_from", "2026-11"}, kv...)...)
+		if status, b, _ := h.do("POST", "/utgifter", body); status != http.StatusSeeOther {
+			t.Fatalf("%s: %d\n%s", name, status, b)
+		}
+		return expenseByName(t, h.st, name).Versions[0].Due
+	}
+	for _, c := range []struct {
+		name string
+		kv   []string
+		want month.Mask
+	}{
+		{"Hver måned", []string{"freq", "monthly"}, month.Monthly},
+		{"Halvårlig mars", []string{"freq", "semiannual", "semi_anchor", "3"}, month.MaskOf(3, 9)},
+		{"Årlig oktober", []string{"freq", "yearly", "year_anchor", "10"}, month.MaskOf(10)},
+		{"Barnehage 2", []string{"freq", "eleven"}, month.ElevenMonths(7)},
+		{"Kvartalsvis", []string{"freq", "custom", "month", "1", "month", "4", "month", "7", "month", "10"}, month.MaskOf(1, 4, 7, 10)},
+		// The grid is ignored unless "Egendefinert" is chosen.
+		{"Årlig med rot i rutenettet", []string{"freq", "yearly", "year_anchor", "5", "month", "1", "month", "2"}, month.MaskOf(5)},
+	} {
+		if got := create(c.name, c.kv...); got != c.want {
+			t.Errorf("%s: mask %012b, want %012b", c.name, got, c.want)
+		}
+	}
+	if status, body, _ := h.do("POST", "/utgifter", form("name", "x", "kind", "shared", "amount", "1", "share", "50", "valid_from", "2026-11", "freq", "custom")); status != http.StatusUnprocessableEntity || !strings.Contains(body, "Velg minst én måned.") {
+		t.Errorf("custom with no months: %d", status)
+	}
+
+	// Editing opens on the choice that matches the stored months.
+	komm := expenseByName(t, h.st, "Kommunale avgifter") // half-yearly, March and September
+	page := h.get("/utgifter/"+strconv.FormatInt(komm.ID, 10)+"/endre", http.StatusOK)
+	mustContain(t, page, `value="semiannual" checked`, `<option value="3" selected>mars og september</option>`)
+	kv := expenseByName(t, h.st, "Kvartalsvis")
+	page = h.get("/utgifter/"+strconv.FormatInt(kv.ID, 10)+"/endre", http.StatusOK)
+	mustContain(t, page, `value="custom" checked`, `value="4" checked`)
+}
+
+func TestSharePreviewDoesNotSave(t *testing.T) {
 	h := newSeededHarness(t)
 	before, _ := h.st.Expenses(context.Background())
-	status, body, _ := h.do("POST", "/utgifter", form("name", "Kommunale", "kind", "shared", "amount", "3000", "month", "3",
-		"share", "62,5", "payer", "0", "valid_from", "2026-11", "preset", "semiannual"))
-	if status != http.StatusOK {
-		t.Fatalf("preset: %d", status)
-	}
-	mustContain(t, body, `value="3" checked`, `value="9" checked`, `value="Kommunale"`, "Ola dekker 37,5 %.")
-	if strings.Contains(body, `value="4" checked`) || strings.Contains(body, "Velg") && strings.Contains(body, `role="alert"`) {
-		t.Error("preset should set exactly March and September, without validation errors")
-	}
-	_, body, _ = h.do("POST", "/utgifter", form("kind", "shared", "share", "75", "preview", "1"))
+	_, body, _ := h.do("POST", "/utgifter", form("kind", "shared", "share", "75", "preview", "1"))
 	mustContain(t, body, `id="share-hint"`, "Ola dekker 25 %.")
+	_, body, _ = h.do("POST", "/utgifter", form("kind", "shared", "share", "62,5", "preview", "1"))
+	mustContain(t, body, "Ola dekker 37,5 %.")
 	if after, _ := h.st.Expenses(context.Background()); len(after) != len(before) {
-		t.Error("preset or preview saved an expense")
+		t.Error("preview saved an expense")
 	}
 }
 

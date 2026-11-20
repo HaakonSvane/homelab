@@ -132,12 +132,11 @@ table.ledger.history tr:not(.current) th > :first-child, table.ledger.history tr
 .notice { border-left: 2px solid var(--accent); padding: 0.1rem 0 0.1rem 0.85rem; margin: 0 0 1.5rem; }
 .callout { font-family: var(--serif); font-size: 1.15rem; margin: 0.5rem 0 1rem; }
 .footnote { margin-top: 1.5rem; }
-details.inactive { margin-top: 0.5rem; }
-details.inactive > summary { margin-bottom: 0.75rem; }
 
 /* Month navigation */
-.monthnav { display: flex; justify-content: space-between; align-items: baseline; margin: -0.25rem 0 1.75rem; font-size: 0.95rem; }
-.monthnav > a { color: var(--muted); text-decoration: none; padding: 0.4rem 0; min-width: 4rem; }
+.monthnav { display: flex; justify-content: space-between; align-items: center; margin: -0.25rem 0 1.75rem; font-size: 0.95rem; }
+.monthnav > a { color: var(--muted); text-decoration: none; padding: 0.4rem 0; min-width: 4rem; display: inline-flex; align-items: center; gap: 0.15rem; }
+.monthnav > a[rel="next"] { justify-content: flex-end; }
 .monthnav > a[rel="next"] { text-align: right; }
 .monthnav > a:hover { color: var(--ink); }
 .monthnav-current { text-align: center; }
@@ -159,9 +158,6 @@ legend { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; padding
 .choices label, .month-grid label { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--ink); font-size: 0.95rem; margin: 0; }
 input[type="radio"], input[type="checkbox"] { width: 1.1rem; height: 1.1rem; min-height: 0; margin: 0; accent-color: var(--ink); }
 .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem 0.5rem; margin-top: 0.75rem; }
-.presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-button.chip { min-height: 2.1rem; padding: 0.2rem 0.75rem; font-size: 0.85rem; border-color: var(--rule); color: var(--muted); }
-button.chip:hover { border-color: var(--ink); color: var(--ink); }
 .actions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
 .actions .primary { flex: 1; }
 .form-extra { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); }
@@ -207,3 +203,37 @@ dialog.sheet::backdrop { background: rgb(0 0 0 / 0.28); }
   dialog.sheet:not(:popover-open) { translate: 0 1.5rem; opacity: 0; }
   @starting-style { dialog.sheet:popover-open { translate: 0 1.5rem; opacity: 0; } }
 }
+
+/* Icons: thin strokes in the text colour, sized to the text. */
+.icon { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.with-icon { gap: 0.45rem; }
+td.icon-cell { width: 1.9rem; padding-right: 0.25rem; color: var(--muted); }
+td.icon-cell .icon { vertical-align: -0.2em; }
+
+/* Expense groups as accordions */
+details.group { border-top: 1px solid var(--rule); }
+details.group:last-of-type { border-bottom: 1px solid var(--rule); }
+details.group > summary { display: flex; align-items: baseline; gap: 0.75rem; padding: 1.1rem 0; cursor: pointer; list-style: none; color: var(--ink); font-size: 1rem; margin: 0; }
+details.group > summary::-webkit-details-marker { display: none; }
+details.group > summary h2 { margin: 0; flex: 1; }
+details.group > summary .icon { color: var(--muted); align-self: center; transition: rotate 0.18s ease; }
+details.group[open] > summary .icon { rotate: 180deg; }
+details.group > table.ledger { margin-bottom: 1.25rem; }
+details.group > table.ledger tbody tr:first-child > * { border-top: 0; }
+details[open].group > summary { color: var(--ink); }
+
+/* Frequency: four choices, details for half-yearly/yearly, and a custom month grid. */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.seg-option { position: relative; display: flex; align-items: center; justify-content: center; min-height: 2.75rem; margin: 0;
+  padding: 0.4rem 0.6rem; border: 1px solid var(--rule); border-radius: 6px; color: var(--muted); font-size: 0.92rem; text-align: center; cursor: pointer; }
+.seg-option:has(input:checked) { border-color: var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.seg-option input, .disclosure input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.seg-option:has(input:focus-visible), .disclosure:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.disclosure { position: relative; display: inline-flex; align-items: center; gap: 0.3rem; margin: 0.85rem 0 0; color: var(--accent); font-size: 0.9rem; cursor: pointer; }
+.disclosure .icon { transition: rotate 0.18s ease; }
+.disclosure:has(input:checked) { color: var(--ink); }
+.disclosure:has(input:checked) .icon { rotate: 180deg; }
+.freq .freq-detail, .freq .month-grid { display: none; }
+.freq:has(input[value="semiannual"]:checked) .freq-semiannual,
+.freq:has(input[value="yearly"]:checked) .freq-yearly { display: block; margin-top: 0.85rem; }
+.freq:has(input[value="custom"]:checked) .month-grid { display: grid; }

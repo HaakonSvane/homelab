@@ -1,0 +1,13 @@
+package components
+
+// Icon draws a small line icon (24×24 grid, stroked in currentColor). The shapes are
+// drawn here, not taken from an icon library. Unknown names draw nothing.
+templ Icon(name string) {
+	if paths, ok := iconPaths[name]; ok {
+		<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+			for _, d := range paths {
+				<path d={ d }></path>
+			}
+		</svg>
+	}
+}

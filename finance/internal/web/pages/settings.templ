@@ -55,14 +55,20 @@ templ Settings(u store.User, passkeys []store.Passkey, formErr SettingsError) {
 					</li>
 				}
 			</ul>
-			<button type="button" data-passkey="register">Legg til passkey på denne enheten</button>
+			<button type="button" class="with-icon" data-passkey="register">
+				@components.Icon("key")
+				Legg til passkey på denne enheten
+			</button>
 			<p id="passkey-error" class="error" role="alert" hidden></p>
 		</section>
 		<section>
 			<h2>Konto</h2>
 			<p>Logget inn som { u.DisplayName }.</p>
 			<form method="post" action="/logg-ut">
-				<button type="submit">Logg ut</button>
+				<button type="submit" class="with-icon">
+					@components.Icon("logout")
+					Logg ut
+				</button>
 			</form>
 		</section>
 		@components.PasskeyScript()

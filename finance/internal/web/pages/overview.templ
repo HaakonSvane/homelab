@@ -71,6 +71,9 @@ templ Overview(v OverviewView) {
 					<tbody>
 						for _, d := range v.Due {
 							<tr>
+								<td class="icon-cell">
+									@components.Icon(d.Icon)
+								</td>
 								<th scope="row">
 									{ d.Name }
 									<div class="muted small">{ d.Payer }</div>

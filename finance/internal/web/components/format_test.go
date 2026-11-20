@@ -23,3 +23,28 @@ func TestGreeting(t *testing.T) {
 		}
 	}
 }
+
+func TestCategoryIcon(t *testing.T) {
+	for _, c := range []struct{ category, name, want string }{
+		{"Bolig", "Boliglån", "home"},
+		{"Abonnement", "Strømmetjenester", "repeat"},
+		{"", "Strøm", "bolt"},
+		{"Bolig", "Strøm", "home"}, // category wins over name
+		{"Mat", "Mat og husholdning", "basket"},
+		{"Barn", "Barnehage", "smile"},
+		{"Sparing", "Sparing", "sprout"},
+		{"Diverse", "Gave", "tag"},
+	} {
+		if got := CategoryIcon(c.category, c.name); got != c.want {
+			t.Errorf("CategoryIcon(%q, %q) = %q, want %q", c.category, c.name, got, c.want)
+		}
+	}
+}
+
+func TestGenitive(t *testing.T) {
+	for in, want := range map[string]string{"Rikke": "Rikkes", "Haakon": "Haakons", "Andreas": "Andreas’", "Max": "Max’"} {
+		if got := Genitive(in); got != want {
+			t.Errorf("Genitive(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

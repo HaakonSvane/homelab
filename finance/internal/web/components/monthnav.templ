@@ -6,13 +6,19 @@ import "github.com/HaakonSvane/homelab/finance/internal/month"
 // only <main> (and push the URL); without it they are ordinary links.
 templ MonthNavigation(n MonthNav) {
 	<nav class="monthnav" aria-label="Velg måned" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML">
-		<a href={ templ.SafeURL(n.href(n.Month.Add(-1))) } rel="prev" aria-label="Forrige måned">‹ { month.ShortName(n.Month.Add(-1).Month()) }</a>
+		<a href={ templ.SafeURL(n.href(n.Month.Add(-1))) } rel="prev" aria-label="Forrige måned">
+			@Icon("chevron-left")
+			{ month.ShortName(n.Month.Add(-1).Month()) }
+		</a>
 		<span class="monthnav-current">
 			{ n.Month.Label() }
 			if n.Month != n.Current {
 				<a class="small" href={ templ.SafeURL(n.Path) }>til i dag</a>
 			}
 		</span>
-		<a href={ templ.SafeURL(n.href(n.Month.Add(1))) } rel="next" aria-label="Neste måned">{ month.ShortName(n.Month.Add(1).Month()) } ›</a>
+		<a href={ templ.SafeURL(n.href(n.Month.Add(1))) } rel="next" aria-label="Neste måned">
+			{ month.ShortName(n.Month.Add(1).Month()) }
+			@Icon("chevron-right")
+		</a>
 	</nav>
 }

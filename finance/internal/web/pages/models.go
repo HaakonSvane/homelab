@@ -44,6 +44,7 @@ type Reimbursement struct {
 
 // DueRow is a bill due in the shown month.
 type DueRow struct {
+	Icon   string
 	Name   string
 	Amount money.Ore
 	Payer  string // "Felleskonto", "Haakon betaler", "Rikke (privat)"
@@ -57,16 +58,19 @@ type ExpensesView struct {
 	Empty    bool
 }
 
-// ExpenseGroup is "Felles" or "Privat · <name>".
+// ExpenseGroup is "Felles", "Dine utgifter" or "<Name>s utgifter", shown as an
+// accordion section.
 type ExpenseGroup struct {
 	Title   string
 	Monthly money.Ore
 	Rows    []ExpenseRow
+	Open    bool // expanded on load
 }
 
 // ExpenseRow is one expense as it stands in the shown month.
 type ExpenseRow struct {
 	ID      int64
+	Icon    string // components.Icon name for the category
 	Name    string
 	Details string // "Bolig · Halvårlig (mar og sep) · 4 800,00 kr per gang · 60/40 · Haakon betaler"
 	Monthly money.Ore
@@ -99,6 +103,9 @@ type ExpenseForm struct {
 	KindLabel  string // shown when fixed: "Felles" / "Privat (Rikke)"
 	Owners     []Option
 	Amount     string
+	Freq       string // monthly, semiannual, yearly, eleven or custom
+	YearMonths []Option
+	SemiMonths []Option // "januar og juli" … "juni og desember"
 	Months     []MonthBox
 	Payers     []Option
 	ShareA     string // percent for the first user, e.g. "50"
