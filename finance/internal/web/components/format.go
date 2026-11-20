@@ -20,6 +20,24 @@ const (
 // use View Transitions where the browser supports them.
 const htmxConfig = `{"includeIndicatorStyles":false,"globalViewTransitions":true}`
 
+// Greeting is the Norwegian greeting for the time of day of t (pass local time):
+// God natt (00–05), God morgen (05–10), God formiddag (10–12),
+// God ettermiddag (12–18), God kveld (18–24).
+func Greeting(t time.Time) string {
+	switch h := t.Hour(); {
+	case h < 5:
+		return "God natt"
+	case h < 10:
+		return "God morgen"
+	case h < 12:
+		return "God formiddag"
+	case h < 18:
+		return "God ettermiddag"
+	default:
+		return "God kveld"
+	}
+}
+
 // Date formats as 19.11.2026 in local time (TZ=Europe/Oslo).
 func Date(t time.Time) string { return t.In(time.Local).Format("02.01.2006") }
 

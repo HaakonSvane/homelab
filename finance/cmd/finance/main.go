@@ -5,6 +5,7 @@
 //
 //	finance serve                           run the web server
 //	finance add-user <name> <display name>  create one of the two users
+//	finance rename-user <name> <display name>  change the name shown in the app
 //	finance enroll <name>                   print a one-time link to register a passkey
 //	finance reset-passkeys <name>           remove a user's passkeys and sessions (recovery)
 //	finance seed <db path> [year]           fill an EMPTY database with fictional dev data
@@ -47,6 +48,7 @@ const usage = `usage: finance <command> [arguments]
 commands:
   serve                           run the web server
   add-user <name> <display name>  create a user (name: lowercase login handle, e.g. kari)
+  rename-user <name> <display name>  change the name shown in the app
   enroll <name>                   print a one-time link (30 min) to register a passkey
   reset-passkeys <name>           remove a user's passkeys and sessions (account recovery)
   seed <db path> [year]           fill an empty database with fictional dev data
@@ -64,6 +66,8 @@ func main() {
 		err = serve()
 	case "add-user":
 		err = addUser(os.Args[2:])
+	case "rename-user":
+		err = renameUser(os.Args[2:])
 	case "enroll":
 		err = enroll(os.Args[2:])
 	case "reset-passkeys":
@@ -198,6 +202,24 @@ func seed(args []string) error {
 		return err
 	}
 	fmt.Printf("Seeded %s with the fictional Nordmann household for %d.\n", args[0], year)
+	return nil
+}
+
+func renameUser(args []string) error {
+	if len(args) < 2 {
+		return errors.New("usage: finance rename-user <name> <display name>")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dbPath())
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	u, err := st.RenameUser(ctx, args[0], strings.Join(args[1:], " "))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("User %q is now shown as %s.\n", u.Name, u.DisplayName)
 	return nil
 }
 

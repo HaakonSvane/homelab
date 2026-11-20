@@ -148,7 +148,7 @@ func (s *Server) enrollPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	render(w, r, http.StatusOK, pages.Home(currentUser(r)))
+	render(w, r, http.StatusOK, pages.Home(currentUser(r), components.Greeting(s.store.Now().In(time.Local))))
 }
 
 func (s *Server) comingSoon(title string, tab components.Tab) http.HandlerFunc {

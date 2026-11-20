@@ -155,7 +155,7 @@ func (h *harness) expectLoggedOut() {
 func (h *harness) expectLoggedInAs(name string) {
 	h.t.Helper()
 	status, body, _ := h.do("GET", "/", "")
-	if status != http.StatusOK || !strings.Contains(body, "Hei, "+name+"!") {
+	if status != http.StatusOK || !strings.Contains(body, ", "+name+"</h1>") {
 		h.t.Fatalf("GET /: %d, want greeting for %s:\n%s", status, name, body)
 	}
 }

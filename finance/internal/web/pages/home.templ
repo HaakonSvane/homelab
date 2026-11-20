@@ -6,9 +6,9 @@ import (
 )
 
 // Home is a placeholder until the overview page is built.
-templ Home(u store.User) {
+templ Home(u store.User, greeting string) {
 	@components.Page("Oversikt", components.TabOverview) {
-		<h1>Hei, { u.DisplayName }!</h1>
+		<h1>{ greeting }, { u.DisplayName }</h1>
 		<p class="muted">Du er logget inn. Oversikten over månedens overføringer kommer snart.</p>
 	}
 }

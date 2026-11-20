@@ -57,14 +57,28 @@ func TestCreateUser(t *testing.T) {
 			t.Errorf("CreateUser(%q, %q) err = %v, want ErrInvalid", c.name, c.display, err)
 		}
 	}
-	if _, err := s.CreateUser(ctx, "ola", "Ola"); err != nil {
-		t.Fatal(err)
+	// Quote marks around a name (smart quotes from a copied command) are dropped.
+	ola, err := s.CreateUser(ctx, "ola", "“Ola”")
+	if err != nil || ola.DisplayName != "Ola" {
+		t.Fatalf("CreateUser with smart quotes = %+v, %v", ola, err)
 	}
 	if _, err := s.CreateUser(ctx, "per", "Per"); !errors.Is(err, ErrInvalid) {
 		t.Errorf("third user err = %v, want ErrInvalid", err)
 	}
 	if us, _ := s.Users(ctx); len(us) != 2 || us[0].Name != "kari" || us[1].Name != "ola" {
 		t.Errorf("Users = %+v", us)
+	}
+
+	for in, want := range map[string]string{"\"Kari Nordmann\"": "Kari Nordmann", "‘Kari’": "Kari", " «Kari» ": "Kari", "Kari's": "Kari's"} {
+		if u, err := s.RenameUser(ctx, "kari", in); err != nil || u.DisplayName != want {
+			t.Errorf("RenameUser(%q) = %q, %v; want %q", in, u.DisplayName, err, want)
+		}
+	}
+	if _, err := s.RenameUser(ctx, "kari", "“”"); !errors.Is(err, ErrInvalid) {
+		t.Errorf("rename to only quotes: %v", err)
+	}
+	if _, err := s.RenameUser(ctx, "nobody", "X"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("rename unknown user: %v", err)
 	}
 }
 

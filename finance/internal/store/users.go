@@ -25,17 +25,28 @@ type User struct {
 	CreatedAt   time.Time
 }
 
+// cleanDisplayName trims whitespace and quote marks around a display name. Copying
+// a command from a chat or a note often turns "Kari" into “Kari”, which the shell
+// then passes through literally instead of treating as quoting.
+func cleanDisplayName(displayName string) (string, error) {
+	displayName = strings.TrimSpace(strings.Trim(strings.TrimSpace(displayName), "\"'“”‘’«»„‚"))
+	if displayName == "" || utf8.RuneCountInString(displayName) > 64 {
+		return "", invalid("display name must be 1–64 characters")
+	}
+	return displayName, nil
+}
+
 // CreateUser adds a user. Users are created from the CLI, never from the web UI.
 func (s *Store) CreateUser(ctx context.Context, name, displayName string) (User, error) {
-	displayName = strings.TrimSpace(displayName)
 	if !userName.MatchString(name) {
 		return User{}, invalid("user name %q: use 1–32 lowercase letters, digits or '-', starting with a letter", name)
 	}
-	if displayName == "" || utf8.RuneCountInString(displayName) > 64 {
-		return User{}, invalid("display name must be 1–64 characters")
+	displayName, err := cleanDisplayName(displayName)
+	if err != nil {
+		return User{}, err
 	}
 	u := User{Name: name, DisplayName: displayName}
-	err := s.write(ctx, func(tx *sql.Tx) error {
+	err = s.write(ctx, func(tx *sql.Tx) error {
 		var count, taken int
 		if err := tx.QueryRowContext(ctx, `SELECT count(*), count(*) FILTER (WHERE name = ?) FROM users`, name).Scan(&count, &taken); err != nil {
 			return err
@@ -57,6 +68,19 @@ func (s *Store) CreateUser(ctx context.Context, name, displayName string) (User,
 		return err
 	})
 	return u, err
+}
+
+// RenameUser changes a user's display name (the login handle stays).
+func (s *Store) RenameUser(ctx context.Context, name, displayName string) (User, error) {
+	displayName, err := cleanDisplayName(displayName)
+	if err != nil {
+		return User{}, err
+	}
+	res, err := s.DB.ExecContext(ctx, `UPDATE users SET display_name = ? WHERE name = ?`, displayName, name)
+	if err := requireOneRow(res, err); err != nil {
+		return User{}, err
+	}
+	return s.UserByName(ctx, name)
 }
 
 // Users returns all users in creation order.
