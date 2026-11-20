@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/HaakonSvane/homelab/finance/internal/budget"
 	"github.com/HaakonSvane/homelab/finance/internal/ledger"
 	"github.com/HaakonSvane/homelab/finance/internal/money"
 	"github.com/HaakonSvane/homelab/finance/internal/month"
@@ -41,6 +42,12 @@ func (s *Server) income(w http.ResponseWriter, r *http.Request) {
 		iu := pages.IncomeUser{ID: int64(u.ID), Name: u.DisplayName}
 		cur, has := ledger.IncomeAt(versions, m)
 		iu.Current, iu.Has = cur.Amount, has
+		if has && cur.Payday > 0 {
+			iu.Payday = "Lønning " + paydayLabel(cur.Payday)
+			if m == s.thisMonth() {
+				iu.Payday += " · neste " + nbDate(budget.PeriodAt(s.today(), cur.Payday).Next)
+			}
+		}
 		for i := len(rows) - 1; i >= 0; i-- { // newest first
 			inc := rows[i]
 			by := "registrert av " + names[inc.CreatedBy] + " " + components.Date(inc.CreatedAt)
@@ -73,10 +80,10 @@ func (s *Server) incomeUser(w http.ResponseWriter, r *http.Request) (store.User,
 	return u, true
 }
 
-func (s *Server) incomeFormView(u store.User, amount, note string, from month.Month, errs map[string]string) pages.IncomeForm {
+func (s *Server) incomeFormView(u store.User, amount, note string, payday int, from month.Month, errs map[string]string) pages.IncomeForm {
 	return pages.IncomeForm{
 		UserID: int64(u.ID), Name: u.DisplayName, Action: "/inntekt/" + strconv.FormatInt(int64(u.ID), 10),
-		Amount: amount, Note: note, ValidFrom: monthOptions(from, s.thisMonth()), Errors: errs,
+		Amount: amount, Note: note, Paydays: paydayOptions(payday), ValidFrom: monthOptions(from, s.thisMonth()), Errors: errs,
 	}
 }
 
@@ -97,11 +104,11 @@ func (s *Server) editIncome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	now := s.thisMonth()
-	amount := ""
+	amount, payday := "", 0
 	if cur, ok := ledger.IncomeAt(versions, now); ok {
-		amount = money.FormatNumber(cur.Amount)
+		amount, payday = money.FormatNumber(cur.Amount), cur.Payday
 	}
-	render(w, r, http.StatusOK, pages.IncomeFormPage(s.incomeFormView(u, amount, "", now, map[string]string{})))
+	render(w, r, http.StatusOK, pages.IncomeFormPage(s.incomeFormView(u, amount, "", payday, now, map[string]string{})))
 }
 
 func (s *Server) saveIncome(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +129,12 @@ func (s *Server) saveIncome(w http.ResponseWriter, r *http.Request) {
 	if len([]rune(note)) > 200 {
 		errs["note"] = "Notatet kan ha maks 200 tegn."
 	}
+	payday, err := strconv.Atoi(r.PostFormValue("payday"))
+	if err != nil || payday < 0 || payday > 31 {
+		payday = 0
+	}
 	if len(errs) == 0 {
-		err := s.store.SetIncome(r.Context(), u.ID, ledger.IncomeVersion{ValidFrom: from, Amount: amount}, note, currentUser(r).ID)
+		err := s.store.SetIncome(r.Context(), u.ID, ledger.IncomeVersion{ValidFrom: from, Amount: amount, Payday: payday}, note, currentUser(r).ID)
 		if err == nil {
 			to := "/inntekt"
 			if from != s.thisMonth() {
@@ -138,5 +149,5 @@ func (s *Server) saveIncome(w http.ResponseWriter, r *http.Request) {
 		}
 		errs["form"] = "Inntekten kunne ikke lagres. Sjekk feltene og prøv igjen."
 	}
-	render(w, r, http.StatusUnprocessableEntity, pages.IncomeFormPage(s.incomeFormView(u, rawAmount, note, from, errs)))
+	render(w, r, http.StatusUnprocessableEntity, pages.IncomeFormPage(s.incomeFormView(u, rawAmount, note, payday, from, errs)))
 }

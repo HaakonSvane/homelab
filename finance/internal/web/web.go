@@ -45,6 +45,8 @@ func New(st *store.Store, a *auth.Auth) http.Handler {
 	// Logged in only.
 	private := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, auth.RequireUser(h)) }
 	private("GET /{$}", s.overview)
+	private("POST /kan-jeg-kjope", s.canIBuy)
+	private("POST /felleskonto/saldo", s.checkBuffer)
 	private("GET /utgifter", s.expenses)
 	private("GET /utgifter/ny", s.newExpense)
 	private("POST /utgifter", s.createExpense)

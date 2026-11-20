@@ -21,6 +21,12 @@ templ Income(v IncomeView) {
 				</div>
 				if u.Has {
 					<p class="figure num">{ components.Kr(u.Current) }</p>
+					if u.Payday != "" {
+						<p class="muted small with-icon payday">
+							@components.Icon("calendar-blank")
+							{ u.Payday }
+						</p>
+					}
 				} else {
 					<p class="muted">Ingen inntekt registrert for denne måneden.</p>
 				}
@@ -58,12 +64,21 @@ templ IncomeFormPage(f IncomeForm) {
 templ IncomeFormBody(f IncomeForm) {
 	<div id="income-form" class="form-body">
 		<h2>Inntekt for { f.Name }</h2>
-		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#income-form" hx-select="#income-form" hx-swap="outerHTML" novalidate>
+		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#income-form" hx-select="#income-form" hx-swap="outerHTML transition:false" novalidate>
 			@fieldError(f.Errors["form"])
 			<div class="field">
 				<label for="amount">Netto per måned (kr)</label>
 				<input id="amount" name="amount" value={ f.Amount } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ f.Errors["amount"] != "" }/>
 				@fieldError(f.Errors["amount"])
+			</div>
+			<div class="field">
+				<label for="payday">Lønningsdag</label>
+				<select id="payday" name="payday">
+					for _, o := range f.Paydays {
+						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+					}
+				</select>
+				<p class="muted small">Faller dagen på en helg eller helligdag, regnes forrige virkedag.</p>
 			</div>
 			<div class="field">
 				<label for="valid_from">Fra hvilken måned?</label>

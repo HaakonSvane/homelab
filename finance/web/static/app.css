@@ -12,6 +12,8 @@
   --field: light-dark(#ffffff, #1b1b19);
   --accent: light-dark(#2d4f78, #a3bddf);
   --danger: light-dark(#a3271c, #ee8b80);
+  --good: light-dark(#2f6b4f, #7cc8a0);
+  --warn: light-dark(#94650f, #e0b25c);
   --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-family: var(--sans);
@@ -237,3 +239,31 @@ details[open].group > summary { color: var(--ink); }
 .freq:has(input[value="semiannual"]:checked) .freq-semiannual,
 .freq:has(input[value="yearly"]:checked) .freq-yearly { display: block; margin-top: 0.85rem; }
 .freq:has(input[value="custom"]:checked) .month-grid { display: grid; }
+
+/* Til fri bruk: one row per person, a thin bar for how far into the pay period we are. */
+.free { padding: 0.85rem 0; border-bottom: 1px solid var(--rule); }
+.free:first-of-type { border-top: 1px solid var(--rule); }
+.free:last-of-type { border-bottom: 0; } /* the next section's rule follows */
+.free .row > span:last-child { font-variant-numeric: tabular-nums lining-nums; }
+.free p { margin: 0; }
+progress { appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 3px; margin: 0.55rem 0 0.4rem;
+  border: 0; border-radius: 2px; background: var(--rule); color: var(--ink); }
+progress::-webkit-progress-bar { background: var(--rule); border-radius: 2px; }
+progress::-webkit-progress-value { background: var(--ink); border-radius: 2px; }
+progress::-moz-progress-bar { background: var(--ink); border-radius: 2px; }
+
+/* Kan jeg kjøpe? */
+.calc { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.75rem; }
+.calc .field { margin-bottom: 0.5rem; }
+.calc .hint, .calc button { grid-column: 1 / -1; }
+.calc .hint { margin-bottom: 0.85rem; }
+.verdict { margin-top: 1.25rem; padding: 0.15rem 0 0.15rem 1rem; border-left: 2px solid var(--ink); }
+.verdict p { margin: 0 0 0.35rem; }
+.verdict-head { display: flex; align-items: center; gap: 0.5rem; font-family: var(--serif); font-size: 1.3rem; }
+.verdict.fine { border-color: var(--good); }
+.verdict.fine .verdict-head .icon { color: var(--good); }
+.verdict.tight, .verdict.rather-not, .verdict.no-budget { border-color: var(--warn); }
+.verdict.tight .verdict-head .icon, .verdict.rather-not .verdict-head .icon, .verdict.no-budget .verdict-head .icon { color: var(--warn); }
+.verdict.not-covered { border-color: var(--danger); }
+.verdict.not-covered .verdict-head .icon { color: var(--danger); }
+p.payday { display: flex; align-items: center; margin-top: -0.5rem; }

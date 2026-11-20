@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HaakonSvane/homelab/finance/internal/budget"
 	"github.com/HaakonSvane/homelab/finance/internal/ledger"
 	"github.com/HaakonSvane/homelab/finance/internal/money"
 	"github.com/HaakonSvane/homelab/finance/internal/month"
@@ -105,3 +106,42 @@ func redirectAfterPost(w http.ResponseWriter, r *http.Request, to string) {
 	}
 	http.Redirect(w, r, to, http.StatusSeeOther)
 }
+
+var weekdays = [7]string{"søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"}
+
+// nbDate formats a date the Norwegian way with the weekday: "fredag 18. desember".
+func nbDate(d budget.Date) string {
+	return weekdays[d.Weekday()] + " " + strconv.Itoa(d.Day) + ". " + month.Name(d.Month)
+}
+
+// days formats a day count: "1 dag", "11 dager".
+func days(n int) string {
+	if n == 1 {
+		return "1 dag"
+	}
+	return strconv.Itoa(n) + " dager"
+}
+
+// paydayLabel describes a payday setting: "den 20.", "siste dag i måneden".
+func paydayLabel(day int) string {
+	if day == 31 {
+		return "siste dag i måneden"
+	}
+	return "den " + strconv.Itoa(day) + "."
+}
+
+// paydayOptions offers "Ikke satt", the 1st–30th and the last day of the month.
+func paydayOptions(selected int) []pages.Option {
+	out := []pages.Option{{Value: "0", Label: "Ikke satt", Selected: selected == 0}}
+	for day := 1; day <= 31; day++ {
+		label := paydayLabel(day)
+		if day == 31 {
+			label = "Siste dag i måneden"
+		}
+		out = append(out, pages.Option{Value: strconv.Itoa(day), Label: label, Selected: day == selected})
+	}
+	return out
+}
+
+// today is the current date in Oslo.
+func (s *Server) today() budget.Date { return budget.DateOf(s.store.Now().In(time.Local)) }

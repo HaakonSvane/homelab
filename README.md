@@ -167,6 +167,16 @@ HomeKit discovery is easy to break at the router/AP level. On a UniFi Cloud Gate
 
 Shared expenses are split by percentage and paid either from the felleskonto or directly by one person. Private expenses (including savings) only affect their owner's leftover. Irregular bills are smoothed: an expense due *n* times a year counts *amount × n/12* every month, so the felleskonto builds a buffer for them. Incomes and expenses change through versions that take effect from a chosen month, so earlier months are never rewritten.
 
+With a payday set on each person's income (Inntekt → Endre → Lønningsdag), the overview also shows two things:
+- **Til fri bruk:** how much of the current pay period's free money should be left today at an even pace.
+- **Kan jeg kjøpe?:** you give a price and the balance on your spending account (after fixed transfers), and it says whether the purchase fits before next payday.
+
+Pay dates that fall on a weekend or a Norwegian bank holiday move to the previous working day. Nothing typed into the calculators is stored.
+
+Further down, two outlook sections:
+- **Kommende store regninger:** irregular bills in the next three months, hidden when there are none.
+- **Buffer på felleskontoen:** how much the shared account must hold to cover the irregular bills over the next 12 months, with an optional check against its real balance.
+
 DNS and TLS need no extra setup: the Pi-hole wildcard already resolves `finans.home.arpa`, and Caddy's `local_certs` covers it. Each device only needs Caddy's CA trusted once (see above).
 
 ### One-time setup

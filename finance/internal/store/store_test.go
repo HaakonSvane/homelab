@@ -110,6 +110,22 @@ func TestSetIncomeReplacesOnlyItsOwnMonth(t *testing.T) {
 	if got[1].Amount != money.Kr(46_000) || got[1].Note != "rettet" || got[1].CreatedBy != b.ID {
 		t.Errorf("July version not replaced: %+v", got[1])
 	}
+	if got[0].Payday != 0 {
+		t.Errorf("payday should be unset by default: %+v", got[0])
+	}
+
+	// Payday is stored with the version and replaced with it.
+	for _, day := range []int{20, 25} {
+		if err := s.SetIncome(ctx, a.ID, ledger.IncomeVersion{ValidFrom: month.MustParse("2026-07"), Amount: money.Kr(46_000), Payday: day}, "", a.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, _ := s.Incomes(ctx); got[1].Payday != 25 || got[0].Payday != 0 {
+		t.Errorf("paydays = %d, %d; want 0, 25", got[0].Payday, got[1].Payday)
+	}
+	if err := s.SetIncome(ctx, a.ID, ledger.IncomeVersion{ValidFrom: month.MustParse("2026-08"), Payday: 32}, "", a.ID); !errors.Is(err, ErrInvalid) {
+		t.Errorf("payday 32: err = %v, want ErrInvalid", err)
+	}
 
 	bad := []error{
 		s.SetIncome(ctx, 99, ledger.IncomeVersion{ValidFrom: month.MustParse("2026-01")}, "", a.ID),

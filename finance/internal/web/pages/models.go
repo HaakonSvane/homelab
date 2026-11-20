@@ -18,11 +18,67 @@ type OverviewView struct {
 	Reimbursements []Reimbursement
 	Due            []DueRow
 	// DueFromFelleskonto is what the bills due this month take out of the shared
-	// account; Buffer is Felleskonto minus that (negative: the buffer is drawn on).
+	// account; BufferChange is Felleskonto minus that (negative: the buffer is drawn on).
 	DueFromFelleskonto money.Ore
-	Buffer             money.Ore
+	BufferChange       money.Ore
 	MissingIncome      []string // names of users without any registered income
 	NoExpenses         bool
+
+	IsCurrent bool           // the shown month is this month (the "now" sections show)
+	Free      []FreeSpending // "Til fri bruk", one per person
+	Buy       BuyForm        // "Kan jeg kjøpe?"
+	Upcoming  []UpcomingRow  // big irregular bills in the next months; hidden if empty
+	Buffer    BufferView     // "Buffer på felleskontoen"
+}
+
+// FreeSpending is one person's free money in the current pay period.
+type FreeSpending struct {
+	Name         string
+	HasPayday    bool
+	ShouldHave   money.Ore // what an even pace leaves today
+	NormalPerDay money.Ore
+	NextPayday   string // "fredag 18. desember"
+	DaysLeft     string // "11 dager"
+	Elapsed      int    // days into the period, for <progress>
+	Days         int
+}
+
+// BuyForm is the "Kan jeg kjøpe?" calculator. Nothing typed here is stored.
+type BuyForm struct {
+	HasPayday bool
+	Price     string
+	Balance   string
+	Errors    map[string]string
+	Result    *Verdict
+}
+
+// Verdict is the calculator's answer.
+type Verdict struct {
+	Kind     string // fine, tight, rather-not, not-covered, no-budget (CSS class and icon)
+	Icon     string
+	Headline string
+	Lines    []string
+}
+
+// UpcomingRow is a big irregular bill in a coming month.
+type UpcomingRow struct {
+	Icon   string
+	Name   string
+	When   string // "mars 2027"
+	Payer  string
+	Amount money.Ore
+}
+
+// BufferView is how much the felleskonto should hold for the irregular bills.
+type BufferView struct {
+	Required money.Ore
+	From     string // "november 2026"
+	LowNote  string // "Ellers går den i minus i april 2027, når Bilforsikring skal betales."
+	CanCheck bool   // offer the balance check (current month only)
+	Balance  string
+	Errors   map[string]string
+	Result   string
+	Short    bool // the typed balance is below the required buffer
 }
 
 // OverviewUser is one person's line on the overview.
@@ -143,6 +199,7 @@ type IncomeView struct {
 type IncomeUser struct {
 	ID      int64
 	Name    string
+	Payday  string // "Lønning den 20. · neste fredag 18. desember", or "" if not set
 	Current money.Ore
 	Has     bool
 	History []IncomeRow
@@ -164,6 +221,7 @@ type IncomeForm struct {
 	Action    string
 	Amount    string
 	Note      string
+	Paydays   []Option
 	ValidFrom []Option
 	Errors    map[string]string
 }

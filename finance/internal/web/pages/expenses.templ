@@ -73,7 +73,7 @@ templ expenseTable(rows []ExpenseRow, inactive bool) {
 // sheetButton opens the bottom sheet (popover, no script) and has htmx load the form
 // at href into it.
 templ sheetButton(href string, selector string, class string) {
-	<button type="button" class={ class } popovertarget="sheet" hx-get={ href } hx-target="#sheet-body" hx-select={ selector } hx-swap="innerHTML" hx-indicator="#sheet">
+	<button type="button" class={ class } popovertarget="sheet" hx-get={ href } hx-target="#sheet-body" hx-select={ selector } hx-swap="innerHTML transition:false" hx-indicator="#sheet">
 		{ children... }
 	</button>
 }
@@ -113,7 +113,7 @@ templ ExpenseFormBody(f ExpenseForm) {
 				{ f.Name }
 			}
 		</h2>
-		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#expense-form" hx-select="#expense-form" hx-swap="outerHTML" novalidate>
+		<form method="post" action={ templ.SafeURL(f.Action) } hx-post={ f.Action } hx-target="#expense-form" hx-select="#expense-form" hx-swap="outerHTML transition:false" novalidate>
 			@fieldError(f.Errors["form"])
 			<div class="field">
 				<label for="name">Navn</label>
@@ -203,7 +203,7 @@ templ ExpenseFormBody(f ExpenseForm) {
 					if f.UserB != "" {
 						<div class="field">
 							<label for="share">Andel for { f.UserA } (%)</label>
-							<input id="share" name="share" value={ f.ShareA } inputmode="decimal" autocomplete="off" autofocus?={ f.Focus == "share" } hx-post={ f.Action } hx-trigger="input changed delay:300ms" hx-target="#share-hint" hx-select="#share-hint" hx-swap="outerHTML" hx-vals={ `{"preview":"1"}` }/>
+							<input id="share" name="share" value={ f.ShareA } inputmode="decimal" autocomplete="off" autofocus?={ f.Focus == "share" } hx-post={ f.Action } hx-trigger="input changed delay:300ms" hx-target="#share-hint" hx-select="#share-hint" hx-swap="outerHTML transition:false" hx-vals={ `{"preview":"1"}` }/>
 							<p id="share-hint" class="muted small">{ f.ShareBHint }</p>
 							@fieldError(f.Errors["share"])
 						</div>

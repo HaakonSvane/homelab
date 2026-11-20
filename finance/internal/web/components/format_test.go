@@ -51,7 +51,8 @@ func TestGenitive(t *testing.T) {
 
 // Every icon a category can map to, and every icon the templates use, must exist.
 func TestIconsExist(t *testing.T) {
-	names := []string{"plus", "pencil", "chevron-down", "chevron-left", "chevron-right", "key", "logout", "tag"}
+	names := []string{"plus", "pencil", "chevron-down", "chevron-left", "chevron-right", "key", "logout", "tag",
+		"check-circle", "warning-circle", "x-circle", "calendar-blank"}
 	for _, c := range categoryIcons {
 		names = append(names, c.icon)
 	}

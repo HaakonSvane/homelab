@@ -387,7 +387,7 @@ func sheetButton(href string, selector string, class string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\" hx-swap=\"innerHTML\" hx-indicator=\"#sheet\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\" hx-swap=\"innerHTML transition:false\" hx-indicator=\"#sheet\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -637,7 +637,7 @@ func ExpenseFormBody(f ExpenseForm) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\" hx-target=\"#expense-form\" hx-select=\"#expense-form\" hx-swap=\"outerHTML\" novalidate>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\" hx-target=\"#expense-form\" hx-select=\"#expense-form\" hx-swap=\"outerHTML transition:false\" novalidate>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1130,14 +1130,14 @@ func ExpenseFormBody(f ExpenseForm) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "\" hx-trigger=\"input changed delay:300ms\" hx-target=\"#share-hint\" hx-select=\"#share-hint\" hx-swap=\"outerHTML\" hx-vals=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "\" hx-trigger=\"input changed delay:300ms\" hx-target=\"#share-hint\" hx-select=\"#share-hint\" hx-swap=\"outerHTML transition:false\" hx-vals=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templruntime.NewAttributeExpression(`{"preview":"1"}`).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/pages/expenses.templ`, Line: 206, Col: 285}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/pages/expenses.templ`, Line: 206, Col: 302}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 				if templ_7745c5c3_Err != nil {

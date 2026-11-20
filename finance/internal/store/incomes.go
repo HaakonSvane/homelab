@@ -30,6 +30,8 @@ func (s *Store) SetIncome(ctx context.Context, user ledger.UserID, v ledger.Inco
 		return invalid("income needs a start month")
 	case v.Amount < 0 || v.Amount > money.Max:
 		return invalid("income %d øre out of range", v.Amount)
+	case v.Payday < 0 || v.Payday > 31:
+		return invalid("payday %d out of range", v.Payday)
 	case utf8.RuneCountInString(note) > 200:
 		return invalid("note longer than 200 characters")
 	}
@@ -38,14 +40,15 @@ func (s *Store) SetIncome(ctx context.Context, user ledger.UserID, v ledger.Inco
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO incomes (user_id, valid_from, amount_ore, note, created_by, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO incomes (user_id, valid_from, amount_ore, payday, note, created_by, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (user_id, valid_from) DO UPDATE SET
 				amount_ore = excluded.amount_ore,
+				payday     = excluded.payday,
 				note       = excluded.note,
 				created_by = excluded.created_by,
 				created_at = excluded.created_at`,
-			int64(user), v.ValidFrom, int64(v.Amount), note, int64(by), s.timestamp())
+			int64(user), v.ValidFrom, int64(v.Amount), nullDay(v.Payday), note, int64(by), s.timestamp())
 		return err
 	})
 }
@@ -57,7 +60,7 @@ func (s *Store) Incomes(ctx context.Context) ([]Income, error) {
 
 func incomes(ctx context.Context, q querier) ([]Income, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, user_id, valid_from, amount_ore, note, created_by, created_at
+		SELECT id, user_id, valid_from, amount_ore, payday, note, created_by, created_at
 		FROM incomes ORDER BY user_id, valid_from`)
 	if err != nil {
 		return nil, err
@@ -67,15 +70,25 @@ func incomes(ctx context.Context, q querier) ([]Income, error) {
 	for rows.Next() {
 		var in Income
 		var created string
-		if err := rows.Scan(&in.ID, &in.User, &in.ValidFrom, &in.Amount, &in.Note, &in.CreatedBy, &created); err != nil {
+		var payday sql.NullInt64
+		if err := rows.Scan(&in.ID, &in.User, &in.ValidFrom, &in.Amount, &payday, &in.Note, &in.CreatedBy, &created); err != nil {
 			return nil, err
 		}
+		in.Payday = int(payday.Int64)
 		if in.CreatedAt, err = parseTime(created); err != nil {
 			return nil, err
 		}
 		out = append(out, in)
 	}
 	return out, rows.Err()
+}
+
+// nullDay maps payday 0 (not set) to SQL NULL.
+func nullDay(day int) any {
+	if day == 0 {
+		return nil
+	}
+	return day
 }
 
 // requireUsers returns ErrInvalid unless every id is an existing user.

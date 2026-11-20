@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"github.com/HaakonSvane/homelab/finance/internal/month"
 	"github.com/HaakonSvane/homelab/finance/internal/web/components"
 	"strings"
@@ -15,6 +16,31 @@ templ Overview(v OverviewView) {
 		}
 		if len(v.MissingIncome) > 0 {
 			<p class="notice">Mangler inntekt for { strings.Join(v.MissingIncome, " og ") }. <a href="/inntekt">Registrer inntekt</a>, så ser dere hva som blir igjen.</p>
+		}
+		if v.IsCurrent && len(v.Free) > 0 {
+			<section>
+				<h2>Til fri bruk</h2>
+				for _, f := range v.Free {
+					<div class="free">
+						<div class="row">
+							<span>{ f.Name }</span>
+							if f.HasPayday {
+								<span class="num">{ components.Kr(f.ShouldHave) }</span>
+							}
+						</div>
+						if f.HasPayday {
+							<progress max={ fmt.Sprint(f.Days) } value={ fmt.Sprint(f.Elapsed) } aria-label={ "Dager siden lønning for " + f.Name }></progress>
+							<p class="muted small">
+								Bør være igjen nå med jevnt forbruk. Lønning { f.NextPayday }, om { f.DaysLeft } ·
+								<span class="num">{ components.Kr(f.NormalPerDay) }</span> per dag.
+							</p>
+						} else {
+							<p class="muted small">Legg inn lønningsdag under <a href="/inntekt">Inntekt</a>, så vises det her.</p>
+						}
+					</div>
+				}
+			</section>
+			@BuySection(v.Buy)
 		}
 		<section>
 			<h2>Til felleskontoen</h2>
@@ -86,13 +112,97 @@ templ Overview(v OverviewView) {
 				<p class="muted small">
 					Fra felleskontoen går <span class="num">{ components.Kr(v.DueFromFelleskonto) }</span> ut og
 					<span class="num">{ components.Kr(v.Felleskonto) }</span> inn:
-					if v.Buffer >= 0 {
-						bufferen øker med <span class="num">{ components.Kr(v.Buffer) }</span>.
+					if v.BufferChange >= 0 {
+						bufferen øker med <span class="num">{ components.Kr(v.BufferChange) }</span>.
 					} else {
-						bufferen brukes med <span class="num">{ components.Kr(-v.Buffer) }</span>.
+						bufferen brukes med <span class="num">{ components.Kr(-v.BufferChange) }</span>.
 					}
 				</p>
 			}
 		</section>
+		if len(v.Upcoming) > 0 {
+			<section>
+				<h2>Kommende store regninger</h2>
+				<table class="ledger">
+					<tbody>
+						for _, u := range v.Upcoming {
+							<tr>
+								<td class="icon-cell">
+									@components.Icon(u.Icon)
+								</td>
+								<th scope="row">
+									{ u.Name }
+									<div class="muted small">{ u.When } · { u.Payer }</div>
+								</th>
+								<td class="num">{ components.Amount(u.Amount) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</section>
+		}
+		@BufferSection(v.Buffer)
 	}
+}
+
+// BuySection is "Kan jeg kjøpe?". With htmx only this section is swapped.
+templ BuySection(b BuyForm) {
+	<section id="kan-jeg-kjope">
+		<h2>Kan jeg kjøpe?</h2>
+		if !b.HasPayday {
+			<p class="muted small">Legg inn lønningsdagen din under <a href="/inntekt">Inntekt</a>, så kan du sjekke kjøp mot budsjettet.</p>
+		} else {
+			<form class="calc" method="post" action="/kan-jeg-kjope" hx-post="/kan-jeg-kjope" hx-target="#kan-jeg-kjope" hx-select="#kan-jeg-kjope" hx-swap="outerHTML transition:false" novalidate>
+				<div class="field">
+					<label for="price">Pris (kr)</label>
+					<input id="price" name="price" value={ b.Price } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ b.Errors["price"] != "" }/>
+					@fieldError(b.Errors["price"])
+				</div>
+				<div class="field">
+					<label for="balance">Saldo nå (kr)</label>
+					<input id="balance" name="balance" value={ b.Balance } inputmode="decimal" autocomplete="off" placeholder="0,00" autofocus?={ b.Errors["price"] == "" && b.Errors["balance"] != "" }/>
+					@fieldError(b.Errors["balance"])
+				</div>
+				<p class="muted small hint">Saldoen på brukskontoen etter at faste trekk og overføringer er gått. Ingenting du skriver her lagres.</p>
+				<button type="submit" class="primary">Sjekk</button>
+			</form>
+			if b.Result != nil {
+				<div class={ templ.Classes("verdict", b.Result.Kind) } role="status">
+					<p class="verdict-head">
+						@components.Icon(b.Result.Icon)
+						{ b.Result.Headline }
+					</p>
+					for _, line := range b.Result.Lines {
+						<p class="small">{ line }</p>
+					}
+				</div>
+			}
+		}
+	</section>
+}
+
+// BufferSection is how much the felleskonto should hold, with an optional balance check.
+templ BufferSection(b BufferView) {
+	<section id="buffer">
+		<h2>Buffer på felleskontoen</h2>
+		if b.Required == 0 {
+			<p>Overføringene dekker alle regningene de neste tolv månedene, så det trengs ingen ekstra buffer.</p>
+		} else {
+			<p>
+				Ved inngangen til { b.From } bør felleskontoen ha minst <span class="num">{ components.Kr(b.Required) }</span>
+				før månedens overføringer kommer inn.
+			</p>
+			<p class="muted small">{ b.LowNote }</p>
+		}
+		if b.CanCheck {
+			<form class="inline-form" method="post" action="/felleskonto/saldo" hx-post="/felleskonto/saldo" hx-target="#buffer" hx-select="#buffer" hx-swap="outerHTML transition:false" novalidate>
+				<input name="balance" value={ b.Balance } inputmode="decimal" autocomplete="off" placeholder="Saldo nå" aria-label="Saldo på felleskontoen nå" autofocus?={ b.Errors["balance"] != "" }/>
+				<button type="submit">Sjekk saldo</button>
+			</form>
+			@fieldError(b.Errors["balance"])
+			if b.Result != "" {
+				<p class={ templ.KV("error", b.Short) } role="status">{ b.Result }</p>
+			}
+		}
+	</section>
 }

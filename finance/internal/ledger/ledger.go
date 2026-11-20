@@ -53,7 +53,7 @@ func Settle(in Input, m month.Month) (Settlement, error) {
 		if v.Due.Has(m.Month()) && v.Amount > 0 {
 			due = append(due, DueItem{
 				ExpenseID: e.ID, Name: e.Name, Category: e.Category, Kind: e.Kind,
-				Owner: e.Owner, Payer: v.Payer, Amount: v.Amount,
+				Owner: e.Owner, Payer: v.Payer, Amount: v.Amount, PerYear: v.Due.Count(),
 			})
 		}
 	}
@@ -235,6 +235,9 @@ func Validate(in Input) error {
 			seen[v.ValidFrom] = true
 			if v.Amount < 0 || v.Amount > money.Max {
 				return fmt.Errorf("ledger: user %d: income %d øre out of range", u, v.Amount)
+			}
+			if v.Payday < 0 || v.Payday > 31 {
+				return fmt.Errorf("ledger: user %d: payday %d out of range", u, v.Payday)
 			}
 		}
 	}

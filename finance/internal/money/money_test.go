@@ -101,3 +101,17 @@ func TestParseRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestDivRound(t *testing.T) {
+	for _, c := range []struct {
+		o    Ore
+		n    int64
+		want Ore
+	}{
+		{100, 3, 33}, {200, 3, 67}, {5, 2, 2}, {7, 2, 4}, {-5, 2, -2}, {-7, 2, -4}, {0, 30, 0}, {3000000, 31, 96774},
+	} {
+		if got := DivRound(c.o, c.n); got != c.want {
+			t.Errorf("DivRound(%d, %d) = %d, want %d", c.o, c.n, got, c.want)
+		}
+	}
+}

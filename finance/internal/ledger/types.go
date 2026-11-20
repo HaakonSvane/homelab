@@ -53,6 +53,7 @@ type Expense struct {
 type IncomeVersion struct {
 	ValidFrom month.Month
 	Amount    money.Ore
+	Payday    int // day of month the income arrives, 1–31 (31 = last day); 0 = not set
 }
 
 // Input is everything the ledger needs: the users (in display order) and the full
@@ -97,6 +98,7 @@ type DueItem struct {
 	Owner     UserID
 	Payer     UserID
 	Amount    money.Ore
+	PerYear   int // how many months a year the bill falls due
 }
 
 // Settlement is the result for one month.

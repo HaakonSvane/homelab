@@ -202,3 +202,20 @@ func allDigits(s string) bool {
 	}
 	return true
 }
+
+// DivRound divides an amount by n (> 0), rounding half to even: used for per-day
+// and pro-rata figures.
+func DivRound(o Ore, n int64) Ore {
+	q, r := int64(o)/n, int64(o)%n
+	if r < 0 {
+		q--
+		r += n
+	}
+	switch {
+	case 2*r > n:
+		q++
+	case 2*r == n && q%2 != 0:
+		q++
+	}
+	return Ore(q)
+}
