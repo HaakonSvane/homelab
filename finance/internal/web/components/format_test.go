@@ -11,13 +11,13 @@ func TestGreeting(t *testing.T) {
 		hour, min int
 		want      string
 	}{
-		{0, 0, "God natt"}, {4, 59, "God natt"},
-		{5, 0, "God morgen"}, {9, 59, "God morgen"},
-		{10, 0, "God formiddag"}, {11, 59, "God formiddag"},
-		{12, 0, "God ettermiddag"}, {17, 59, "God ettermiddag"},
-		{18, 0, "God kveld"}, {23, 59, "God kveld"},
+		{0, 0, "Sen økt, Kari?"}, {4, 59, "Sen økt, Kari?"},
+		{5, 0, "God morgen, Kari"}, {9, 59, "God morgen, Kari"},
+		{10, 0, "God formiddag, Kari"}, {11, 59, "God formiddag, Kari"},
+		{12, 0, "God ettermiddag, Kari"}, {17, 59, "God ettermiddag, Kari"},
+		{18, 0, "God kveld, Kari"}, {23, 59, "God kveld, Kari"},
 	} {
-		if got := Greeting(time.Date(2026, 11, 20, c.hour, c.min, 0, 0, oslo)); got != c.want {
+		if got := Greeting(time.Date(2026, 11, 20, c.hour, c.min, 0, 0, oslo), "Kari"); got != c.want {
 			t.Errorf("%02d:%02d → %q, want %q", c.hour, c.min, got, c.want)
 		}
 	}

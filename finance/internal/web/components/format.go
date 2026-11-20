@@ -20,21 +20,21 @@ const (
 // use View Transitions where the browser supports them.
 const htmxConfig = `{"includeIndicatorStyles":false,"globalViewTransitions":true}`
 
-// Greeting is the Norwegian greeting for the time of day of t (pass local time):
-// God natt (00–05), God morgen (05–10), God formiddag (10–12),
-// God ettermiddag (12–18), God kveld (18–24).
-func Greeting(t time.Time) string {
+// Greeting greets name for the time of day of t (pass local time): God morgen
+// (05–10), God formiddag (10–12), God ettermiddag (12–18), God kveld (18–24), and
+// after midnight a wry "Sen økt, <name>?" — "God natt" is a goodbye, not a hello.
+func Greeting(t time.Time, name string) string {
 	switch h := t.Hour(); {
 	case h < 5:
-		return "God natt"
+		return "Sen økt, " + name + "?"
 	case h < 10:
-		return "God morgen"
+		return "God morgen, " + name
 	case h < 12:
-		return "God formiddag"
+		return "God formiddag, " + name
 	case h < 18:
-		return "God ettermiddag"
+		return "God ettermiddag, " + name
 	default:
-		return "God kveld"
+		return "God kveld, " + name
 	}
 }
 
