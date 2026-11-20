@@ -1,10 +1,10 @@
 package components
 
-// Icon draws a small line icon (24×24 grid, stroked in currentColor). The shapes are
-// drawn here, not taken from an icon library. Unknown names draw nothing.
+// Icon draws a Phosphor Light icon in the current text colour (see iconPaths).
+// Unknown names draw nothing.
 templ Icon(name string) {
 	if paths, ok := iconPaths[name]; ok {
-		<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+		<svg class="icon" viewBox="0 0 256 256" aria-hidden="true" focusable="false">
 			for _, d := range paths {
 				<path d={ d }></path>
 			}

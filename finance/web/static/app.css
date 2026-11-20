@@ -204,8 +204,8 @@ dialog.sheet::backdrop { background: rgb(0 0 0 / 0.28); }
   @starting-style { dialog.sheet:popover-open { translate: 0 1.5rem; opacity: 0; } }
 }
 
-/* Icons: thin strokes in the text colour, sized to the text. */
-.icon { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* Icons: Phosphor Light, filled in the text colour, sized to the text. */
+.icon { width: 1.2em; height: 1.2em; fill: currentColor; flex: none; }
 .with-icon { gap: 0.45rem; }
 td.icon-cell { width: 1.9rem; padding-right: 0.25rem; color: var(--muted); }
 td.icon-cell .icon { vertical-align: -0.2em; }

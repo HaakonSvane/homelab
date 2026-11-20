@@ -126,7 +126,7 @@ func TestExpensesList(t *testing.T) {
 		"Halvårlig (mar og sep)", nb("4 800,00 kr")+" per gang",
 		"Kari 40 %, Ola 60 %", // Bilforsikring split
 		"Avsluttede og kommende", "Avsluttet etter august 2026", "Treningssenter",
-		`<path d="M3 11l9-7 9 7">`, // the house icon for Bolig
+		`<svg class="icon" viewBox="0 0 256 256"`, `<path d="M217.9,110.1l-80-80`, // Phosphor's house icon for Bolig
 		`hx-get="/utgifter/ny"`, `popovertarget="sheet"`,
 	)
 }

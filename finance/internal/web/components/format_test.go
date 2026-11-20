@@ -26,13 +26,13 @@ func TestGreeting(t *testing.T) {
 
 func TestCategoryIcon(t *testing.T) {
 	for _, c := range []struct{ category, name, want string }{
-		{"Bolig", "Boliglån", "home"},
+		{"Bolig", "Boliglån", "house"},
 		{"Abonnement", "Strømmetjenester", "repeat"},
-		{"", "Strøm", "bolt"},
-		{"Bolig", "Strøm", "home"}, // category wins over name
+		{"", "Strøm", "lightning"},
+		{"Bolig", "Strøm", "house"}, // category wins over name
 		{"Mat", "Mat og husholdning", "basket"},
-		{"Barn", "Barnehage", "smile"},
-		{"Sparing", "Sparing", "sprout"},
+		{"Barn", "Barnehage", "baby"},
+		{"Sparing", "Sparing", "piggy-bank"},
 		{"Diverse", "Gave", "tag"},
 	} {
 		if got := CategoryIcon(c.category, c.name); got != c.want {
@@ -45,6 +45,19 @@ func TestGenitive(t *testing.T) {
 	for in, want := range map[string]string{"Rikke": "Rikkes", "Haakon": "Haakons", "Andreas": "Andreas’", "Max": "Max’"} {
 		if got := Genitive(in); got != want {
 			t.Errorf("Genitive(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Every icon a category can map to, and every icon the templates use, must exist.
+func TestIconsExist(t *testing.T) {
+	names := []string{"plus", "pencil", "chevron-down", "chevron-left", "chevron-right", "key", "logout", "tag"}
+	for _, c := range categoryIcons {
+		names = append(names, c.icon)
+	}
+	for _, n := range names {
+		if len(iconPaths[n]) == 0 {
+			t.Errorf("icon %q has no paths", n)
 		}
 	}
 }
