@@ -13,7 +13,8 @@ import (
 	"github.com/HaakonSvane/homelab/finance/internal/web/pages"
 )
 
-// How far ahead the outlook sections look.
+// How far ahead the outlook sections look: the buffer over a year, and the big
+// irregular bills in the shown month plus the next three.
 const (
 	bufferMonths   = 12
 	upcomingMonths = 3
@@ -83,13 +84,6 @@ func (s *Server) renderOverview(w http.ResponseWriter, r *http.Request, m month.
 	for _, re := range st.Reimbursements {
 		v.Reimbursements = append(v.Reimbursements, pages.Reimbursement{From: names[re.From], To: names[re.To], Amount: re.Amount})
 	}
-	for _, d := range st.Due {
-		if d.Kind == ledger.Shared && d.Payer == ledger.Felleskonto {
-			v.DueFromFelleskonto += d.Amount
-		}
-		v.Due = append(v.Due, pages.DueRow{Icon: components.CategoryIcon(d.Category, d.Name), Name: d.Name, Amount: d.Amount, Payer: payerLabel(d, names)})
-	}
-	v.BufferChange = v.Felleskonto - v.DueFromFelleskonto
 
 	if v.IsCurrent {
 		today := s.today()

@@ -100,39 +100,20 @@ func expenseRow(e ledger.Expense, v ledger.ExpenseVersion, names map[ledger.User
 	if v.Due != month.Monthly {
 		parts = append(parts, money.Format(v.Amount)+" per gang")
 	}
-	if e.Kind == ledger.Shared {
-		parts = append(parts, splitLabel(v.Shares, users))
-		if v.Payer != ledger.Felleskonto {
-			parts = append(parts, names[v.Payer]+" betaler")
-		}
+	if e.Kind == ledger.Shared && v.Payer != ledger.Felleskonto {
+		parts = append(parts, names[v.Payer]+" betaler")
 	}
 	return pages.ExpenseRow{ID: e.ID, Icon: components.CategoryIcon(e.Category, e.Name), Name: e.Name,
 		Details: strings.Join(parts, " · "), Monthly: ledger.MonthlyEquivalent(v.Amount, v.Due)}
-}
-
-// splitLabel describes a split: "delt likt", or "Haakon 60 %, Rikke 40 %".
-func splitLabel(shares []ledger.Share, users []store.User) string {
-	bp := map[ledger.UserID]int{}
-	for _, sh := range shares {
-		bp[sh.User] = sh.BP
-	}
-	if len(users) == 2 && bp[users[0].ID] == 5000 && bp[users[1].ID] == 5000 {
-		return "delt likt"
-	}
-	var parts []string
-	for _, u := range users {
-		parts = append(parts, u.DisplayName+" "+formatPercent(bp[u.ID])+" %")
-	}
-	return strings.Join(parts, ", ")
 }
 
 // ---- form state ----
 
 // expenseState is the form's content as typed, plus validation errors.
 type expenseState struct {
-	name, category, amount, share string
-	kind                          ledger.Kind
-	owner, payer                  ledger.UserID
+	name, category, amount string
+	kind                   ledger.Kind
+	owner, payer           ledger.UserID
 	// freq is the frequency choice: monthly, semiannual, yearly, eleven or custom.
 	// yearAnchor and semiAnchor (January–June) say which months for the yearly and
 	// half-yearly choices; due is the resulting mask (from the grid when custom).
@@ -144,7 +125,7 @@ type expenseState struct {
 }
 
 func defaultExpenseState(now month.Month, me ledger.UserID) expenseState {
-	st := expenseState{kind: ledger.Shared, owner: me, share: "50", validFrom: now, errors: map[string]string{}}
+	st := expenseState{kind: ledger.Shared, owner: me, validFrom: now, errors: map[string]string{}}
 	st.setFrequency(month.Monthly, now.Month())
 	return st
 }
@@ -182,14 +163,9 @@ func stateFromExpense(e store.Expense, now month.Month, users []store.User) expe
 	}
 	st := expenseState{
 		name: e.Name, category: e.Category, kind: e.Kind, owner: e.Owner, payer: v.Payer,
-		amount: money.FormatNumber(v.Amount), share: "50", validFrom: from, errors: map[string]string{},
+		amount: money.FormatNumber(v.Amount), validFrom: from, errors: map[string]string{},
 	}
 	st.setFrequency(v.Due, from.Month())
-	for _, sh := range v.Shares {
-		if len(users) > 0 && sh.User == users[0].ID {
-			st.share = formatPercent(sh.BP)
-		}
-	}
 	return st
 }
 
@@ -200,7 +176,6 @@ func readExpenseForm(r *http.Request, st *expenseState, editing bool) {
 	st.name = r.PostFormValue("name")
 	st.category = r.PostFormValue("category")
 	st.amount = r.PostFormValue("amount")
-	st.share = r.PostFormValue("share")
 	if !editing {
 		st.kind = ledger.Kind(r.PostFormValue("kind"))
 		st.owner = parseUserID(r.PostFormValue("owner"))
@@ -273,20 +248,7 @@ func validateExpense(st *expenseState, users []store.User, existing *store.Expen
 			e["owner"] = "Velg hvem utgiften tilhører."
 		}
 	case ledger.Shared:
-		bpA, msg := parsePercent(st.share)
-		if msg != "" {
-			e["share"] = msg
-		}
-		if len(users) == 1 {
-			bpA = 10000
-		}
-		for i, u := range users {
-			bp := bpA
-			if i > 0 {
-				bp = 10000 - bpA
-			}
-			v.Shares = append(v.Shares, ledger.Share{User: u.ID, BP: bp})
-		}
+		v.Shares = equalShares(users)
 		if st.payer != ledger.Felleskonto && !slices.Contains(ids, st.payer) {
 			e["payer"] = "Velg hvem som betaler."
 		}
@@ -295,6 +257,21 @@ func validateExpense(st *expenseState, users []store.User, existing *store.Expen
 		e["kind"] = "Velg felles eller privat."
 	}
 	return v, len(e) == 0
+}
+
+// equalShares splits a shared expense equally (50/50 for two people). The ledger
+// still stores a split per version, so per-expense splits could come back without
+// migrating anything.
+func equalShares(users []store.User) []ledger.Share {
+	var out []ledger.Share
+	for i, u := range users {
+		bp := 10000 / len(users)
+		if i == 0 {
+			bp += 10000 % len(users)
+		}
+		out = append(out, ledger.Share{User: u.ID, BP: bp})
+	}
+	return out
 }
 
 func sameTerms(a, b ledger.ExpenseVersion) bool {
@@ -320,7 +297,7 @@ func (s *Server) expenseFormView(st expenseState, existing *store.Expense, users
 	names := userNames(users)
 	f := pages.ExpenseForm{
 		Action: "/utgifter", Name: st.name, Category: st.category, Kind: st.kind,
-		Amount: st.amount, ShareA: st.share, Errors: st.errors, Focus: pages.FirstError(st.errors),
+		Amount: st.amount, Errors: st.errors, Focus: pages.FirstError(st.errors),
 		ValidFrom: monthOptions(st.validFrom, now),
 	}
 	seen := map[string]bool{}
@@ -345,17 +322,6 @@ func (s *Server) expenseFormView(st expenseState, existing *store.Expense, users
 		if m <= time.June {
 			f.SemiMonths = append(f.SemiMonths, pages.Option{Value: strconv.Itoa(int(m)),
 				Label: month.Name(m) + " og " + month.Name(m+6), Selected: m == st.semiAnchor})
-		}
-	}
-	if len(users) > 0 {
-		f.UserA = users[0].DisplayName
-	}
-	if len(users) > 1 {
-		f.UserB = users[1].DisplayName
-		if bp, msg := parsePercent(st.share); msg == "" {
-			f.ShareBHint = f.UserB + " dekker " + formatPercent(10000-bp) + " %."
-		} else {
-			f.ShareBHint = msg
 		}
 	}
 	if existing != nil {
@@ -413,9 +379,6 @@ func (s *Server) createExpense(w http.ResponseWriter, r *http.Request) {
 	}
 	st := defaultExpenseState(s.thisMonth(), currentUser(r).ID)
 	readExpenseForm(r, &st, false)
-	if s.formOnlyRequest(w, r, &st, nil, users, exps) {
-		return
-	}
 	v, ok := validateExpense(&st, users, nil)
 	if ok {
 		_, err = s.store.CreateExpense(r.Context(), store.NewExpense{
@@ -439,16 +402,6 @@ func ownerFor(st expenseState) ledger.UserID {
 		return st.owner
 	}
 	return 0
-}
-
-// formOnlyRequest answers the live split preview, which re-renders the form without
-// saving. It reports whether it responded.
-func (s *Server) formOnlyRequest(w http.ResponseWriter, r *http.Request, st *expenseState, existing *store.Expense, users []store.User, exps []store.Expense) bool {
-	if r.PostFormValue("preview") == "" {
-		return false
-	}
-	render(w, r, http.StatusOK, pages.ExpenseFormPage(s.expenseFormView(*st, existing, users, exps)))
-	return true
 }
 
 func (s *Server) expensesURL(m month.Month) string {
@@ -505,9 +458,6 @@ func (s *Server) updateExpense(w http.ResponseWriter, r *http.Request) {
 	}
 	st := stateFromExpense(e, s.thisMonth(), users)
 	readExpenseForm(r, &st, true)
-	if s.formOnlyRequest(w, r, &st, &e, users, exps) {
-		return
-	}
 	v, ok := validateExpense(&st, users, &e)
 	if ok {
 		ctx, by := r.Context(), currentUser(r).ID

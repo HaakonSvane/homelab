@@ -58,11 +58,10 @@ type UpcomingBill struct {
 }
 
 // Upcoming lists the irregular bills (due at most IrregularPerYear times a year)
-// in the months after `from`, up to and including from+months, largest first
-// within each month.
+// from `from` up to and including from+months, largest first within each month.
 func Upcoming(in Input, from month.Month, months int) ([]UpcomingBill, error) {
 	var out []UpcomingBill
-	for k := 1; k <= months; k++ {
+	for k := 0; k <= months; k++ {
 		m := from.Add(k)
 		s, err := Settle(in, m)
 		if err != nil {

@@ -231,14 +231,6 @@ templ ExpenseFormBody(f ExpenseForm) {
 			</fieldset>
 			if !f.KindFixed || f.Kind == "shared" {
 				<div class="shared-only">
-					if f.UserB != "" {
-						<div class="field">
-							<label for="share">Andel for { f.UserA } (%)</label>
-							<input id="share" name="share" value={ f.ShareA } inputmode="decimal" autocomplete="off" autofocus?={ f.Focus == "share" } hx-post={ f.Action } hx-trigger="input changed delay:300ms" hx-target="#share-hint" hx-select="#share-hint" hx-swap="outerHTML transition:false" hx-vals={ `{"preview":"1"}` }/>
-							<p id="share-hint" class="muted small">{ f.ShareBHint }</p>
-							@fieldError(f.Errors["share"])
-						</div>
-					}
 					<div class="field">
 						<label for="payer">Betales av</label>
 						<select id="payer" name="payer" autofocus?={ f.Focus == "payer" }>

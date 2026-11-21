@@ -16,13 +16,8 @@ type OverviewView struct {
 	Users          []OverviewUser
 	Felleskonto    money.Ore // what the shared account receives this month
 	Reimbursements []Reimbursement
-	Due            []DueRow
-	// DueFromFelleskonto is what the bills due this month take out of the shared
-	// account; BufferChange is Felleskonto minus that (negative: the buffer is drawn on).
-	DueFromFelleskonto money.Ore
-	BufferChange       money.Ore
-	MissingIncome      []string // names of users without any registered income
-	NoExpenses         bool
+	MissingIncome  []string // names of users without any registered income
+	NoExpenses     bool
 
 	IsCurrent bool           // the shown month is this month (the "now" sections show)
 	Free      []FreeSpending // "Til fri bruk", one per person
@@ -99,14 +94,6 @@ type Reimbursement struct {
 	Amount   money.Ore
 }
 
-// DueRow is a bill due in the shown month.
-type DueRow struct {
-	Icon   string
-	Name   string
-	Amount money.Ore
-	Payer  string // "Felleskonto", "Haakon betaler", "Rikke (privat)"
-}
-
 // ExpensesView is the Utgifter page.
 type ExpensesView struct {
 	Nav      components.MonthNav
@@ -165,10 +152,6 @@ type ExpenseForm struct {
 	SemiMonths []Option // "januar og juli" … "juni og desember"
 	Months     []MonthBox
 	Payers     []Option
-	ShareA     string // percent for the first user, e.g. "50"
-	UserA      string
-	UserB      string
-	ShareBHint string // "Rikke dekker 50 %"
 	ValidFrom  []Option
 	Ended      string // editing an ended expense: "juni 2026"
 	EndMonths  []Option
@@ -178,7 +161,7 @@ type ExpenseForm struct {
 }
 
 // expenseFieldOrder is the order fields appear in the form, for picking Focus.
-var expenseFieldOrder = []string{"name", "category", "kind", "owner", "amount", "due", "share", "payer", "valid_from"}
+var expenseFieldOrder = []string{"name", "category", "kind", "owner", "amount", "due", "payer", "valid_from"}
 
 // FirstError returns the first field (in form order) that has an error.
 func FirstError(errs map[string]string) string {

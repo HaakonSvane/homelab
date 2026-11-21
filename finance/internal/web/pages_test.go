@@ -99,16 +99,14 @@ func TestOverviewShowsSettlement(t *testing.T) {
 		"God ettermiddag, Kari</h1>",
 		"november 2026",
 		"Til felleskontoen",
-		nb("15 517,50"), nb("14 456,50"), nb("29 974,00"), // transfers and total (see store.TestSeedNovember)
-		nb("24 194,50"), nb("26 943,50"), // leftovers
-		"Forfaller i november", "Boliglån", "Ola betaler", "Kari (privat)",
+		nb("15 592,50"), nb("14 381,50"), nb("29 974,00"), // transfers and total (see store.TestSeedNovember)
+		nb("24 119,50"), nb("27 018,50"), // leftovers
 		"Ola betaler i tillegg <span class=\"num\">"+nb("1 600,00 kr")+"</span>",
 	)
-	// July: no kindergarten bill, and Kari's raise has applied.
-	july := h.get("/?m=2026-07", http.StatusOK)
-	mustContain(t, july, "Forfaller i juli", nb("44 500,00"))
-	if strings.Contains(july, "Barnehage") {
-		t.Error("kindergarten listed as due in July")
+	// July: Kari's raise has applied.
+	mustContain(t, h.get("/?m=2026-07", http.StatusOK), "Inntekt "+nb("44 500,00"))
+	if strings.Contains(body, "Forfaller i") {
+		t.Error(`the "Forfaller i" section is gone`)
 	}
 	if strings.Contains(body, "Mangler inntekt") {
 		t.Error("missing-income notice shown although both have income")
@@ -124,11 +122,13 @@ func TestExpensesList(t *testing.T) {
 		`<details class="group"><summary><h2>Olas utgifter</h2>`,      // the other person's start collapsed
 		nb("31 963,00"), // shared monthly total
 		"Halvårlig (mar og sep)", nb("4 800,00 kr")+" per gang",
-		"Kari 40 %, Ola 60 %", // Bilforsikring split
 		"Avsluttede og kommende", "Avsluttet etter august 2026", "Treningssenter",
 		`<svg class="icon" viewBox="0 0 256 256"`, `<path d="M217.9,110.1l-80-80`, // Phosphor's house icon for Bolig
 		`hx-get="/utgifter/ny"`, `popovertarget="sheet"`,
 	)
+	if strings.Contains(body, "delt likt") || strings.Contains(body, " %") {
+		t.Error("expense rows still describe a split")
+	}
 }
 
 func TestCreateExpense(t *testing.T) {
@@ -136,7 +136,7 @@ func TestCreateExpense(t *testing.T) {
 	before, _ := h.st.Expenses(context.Background())
 
 	body := form(append([]string{"name", "Strømmeavtale", "category", "Bolig", "kind", "shared", "amount", "1 249,50",
-		"share", "50", "payer", "0", "valid_from", "2026-11"}, allMonths...)...)
+		"payer", "0", "valid_from", "2026-11"}, allMonths...)...)
 	status, _, hdr := h.do("POST", "/utgifter", body)
 	if status != http.StatusSeeOther || hdr.Get("Location") != "/utgifter" {
 		t.Fatalf("create: %d → %s", status, hdr.Get("Location"))
@@ -165,11 +165,11 @@ func TestCreateExpense(t *testing.T) {
 func TestCreateExpenseValidation(t *testing.T) {
 	h := newSeededHarness(t)
 	before, _ := h.st.Expenses(context.Background())
-	status, body, _ := h.do("POST", "/utgifter", form("name", "", "kind", "shared", "amount", "tusen", "share", "120", "payer", "0", "valid_from", "2026-11"))
+	status, body, _ := h.do("POST", "/utgifter", form("name", "", "kind", "shared", "amount", "tusen", "payer", "0", "valid_from", "2026-11"))
 	if status != http.StatusUnprocessableEntity {
 		t.Fatalf("status %d", status)
 	}
-	mustContain(t, body, "Gi utgiften et navn.", "Skriv beløpet som", "Velg minst én måned.", "Andelen må være et tall fra 0 til 100.",
+	mustContain(t, body, "Gi utgiften et navn.", "Skriv beløpet som", "Velg minst én måned.",
 		`value="tusen"`) // typed input is kept
 	if after, _ := h.st.Expenses(context.Background()); len(after) != len(before) {
 		t.Error("invalid expense was stored")
@@ -180,7 +180,7 @@ func TestFrequencyChoices(t *testing.T) {
 	h := newSeededHarness(t)
 	create := func(name string, kv ...string) month.Mask {
 		t.Helper()
-		body := form(append([]string{"name", name, "kind", "shared", "amount", "1000", "share", "50", "payer", "0", "valid_from", "2026-11"}, kv...)...)
+		body := form(append([]string{"name", name, "kind", "shared", "amount", "1000", "payer", "0", "valid_from", "2026-11"}, kv...)...)
 		if status, b, _ := h.do("POST", "/utgifter", body); status != http.StatusSeeOther {
 			t.Fatalf("%s: %d\n%s", name, status, b)
 		}
@@ -203,7 +203,7 @@ func TestFrequencyChoices(t *testing.T) {
 			t.Errorf("%s: mask %012b, want %012b", c.name, got, c.want)
 		}
 	}
-	if status, body, _ := h.do("POST", "/utgifter", form("name", "x", "kind", "shared", "amount", "1", "share", "50", "valid_from", "2026-11", "freq", "custom")); status != http.StatusUnprocessableEntity || !strings.Contains(body, "Velg minst én måned.") {
+	if status, body, _ := h.do("POST", "/utgifter", form("name", "x", "kind", "shared", "amount", "1", "valid_from", "2026-11", "freq", "custom")); status != http.StatusUnprocessableEntity || !strings.Contains(body, "Velg minst én måned.") {
 		t.Errorf("custom with no months: %d", status)
 	}
 
@@ -214,18 +214,6 @@ func TestFrequencyChoices(t *testing.T) {
 	kv := expenseByName(t, h.st, "Kvartalsvis")
 	page = h.get("/utgifter/"+strconv.FormatInt(kv.ID, 10)+"/endre", http.StatusOK)
 	mustContain(t, page, `value="custom" checked`, `value="4" checked`)
-}
-
-func TestSharePreviewDoesNotSave(t *testing.T) {
-	h := newSeededHarness(t)
-	before, _ := h.st.Expenses(context.Background())
-	_, body, _ := h.do("POST", "/utgifter", form("kind", "shared", "share", "75", "preview", "1"))
-	mustContain(t, body, `id="share-hint"`, "Ola dekker 25 %.")
-	_, body, _ = h.do("POST", "/utgifter", form("kind", "shared", "share", "62,5", "preview", "1"))
-	mustContain(t, body, "Ola dekker 37,5 %.")
-	if after, _ := h.st.Expenses(context.Background()); len(after) != len(before) {
-		t.Error("preview saved an expense")
-	}
 }
 
 func TestEditExpenseVersionsAndLabels(t *testing.T) {
@@ -240,7 +228,7 @@ func TestEditExpenseVersionsAndLabels(t *testing.T) {
 	post := func(name, amount, from string) {
 		t.Helper()
 		status, body, _ := h.do("POST", path, form(append([]string{"name", name, "category", "Bolig", "amount", amount,
-			"share", "50", "payer", ola, "valid_from", from}, allMonths...)...))
+			"payer", ola, "valid_from", from}, allMonths...)...))
 		if status != http.StatusSeeOther {
 			t.Fatalf("edit: %d\n%s", status, body)
 		}
@@ -301,7 +289,11 @@ func TestIncomePage(t *testing.T) {
 
 func TestStandaloneForms(t *testing.T) {
 	h := newSeededHarness(t)
-	mustContain(t, h.get("/utgifter/ny", http.StatusOK), `id="expense-form"`, "Gjelder fra", `name="kind"`, "Andel for Kari (%)")
+	page := h.get("/utgifter/ny", http.StatusOK)
+	mustContain(t, page, `id="expense-form"`, "Gjelder fra", `name="kind"`, `name="payer"`)
+	if strings.Contains(page, "Andel") || strings.Contains(page, `name="share"`) {
+		t.Error("the split field is gone: shared expenses are always 50/50")
+	}
 }
 
 func TestDeleteExpense(t *testing.T) {

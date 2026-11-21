@@ -45,24 +45,6 @@ func parseAmount(raw string) (money.Ore, string) {
 	return o, ""
 }
 
-// parsePercent reads a percentage with up to two decimals ("50", "62,5") as basis
-// points. It reuses the money parser: 62,50 "kroner" is 6250 "øre", i.e. 6250 bp.
-func parsePercent(raw string) (int, string) {
-	raw = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(raw), "%"))
-	bp, err := money.Parse(raw)
-	if err != nil || bp > 10000 || strings.ContainsAny(strings.ToLower(raw), "kr") {
-		return 0, "Andelen må være et tall fra 0 til 100."
-	}
-	return int(bp), ""
-}
-
-// formatPercent shows basis points as a percentage without needless decimals: 50, 62,5.
-func formatPercent(bp int) string {
-	s := strconv.Itoa(bp/100) + "," + strconv.Itoa(bp%100/10) + strconv.Itoa(bp%10)
-	s = strings.TrimSuffix(strings.TrimSuffix(s, "0"), "0")
-	return strings.TrimSuffix(s, ",")
-}
-
 // monthOptions offers months from January two years back to December next year,
 // plus selected if it falls outside that range.
 func monthOptions(selected, now month.Month) []pages.Option {

@@ -15,11 +15,11 @@ func ore(kr, ore int64) money.Ore { return money.Ore(kr*100 + ore) }
 //	felleskonto: 13 500 + 3 200 + 9 500 (Mat, from Sep) + 549 + 1 375 (Barnehage 1 500×11/12)
 //	             + 800 (Kommunale 4 800×2/12) + 750 (Bil 9 000/12) + 300 (Innbo 3 600/12) = 29 974
 //	paid directly: Ola 1 600 (Strøm), Kari 389 (Strømmetjenester)
-//	shared total 31 963; all 50/50 except Bil (Kari 40 %, Ola 60 %):
-//	  Kari: (31 963 − 750)/2 + 300 = 15 906,50 → transfer 15 906,50 − 389   = 15 517,50
-//	  Ola:  (31 963 − 750)/2 + 450 = 16 056,50 → transfer 16 056,50 − 1 600 = 14 456,50
+//	shared total 31 963, split 50/50: 15 981,50 each
+//	  Kari: transfer 15 981,50 − 389   = 15 592,50
+//	  Ola:  transfer 15 981,50 − 1 600 = 14 381,50
 //	private: Kari 4 000 + 399 = 4 399; Ola 4 000 (Treningssenter ended in August)
-//	leftover: Kari 44 500 − 15 906,50 − 4 399 = 24 194,50; Ola 47 000 − 16 056,50 − 4 000 = 26 943,50
+//	leftover: Kari 44 500 − 15 981,50 − 4 399 = 24 119,50; Ola 47 000 − 15 981,50 − 4 000 = 27 018,50
 func TestSeedNovember(t *testing.T) {
 	s := newStore(t)
 	if err := s.Seed(ctx, 2026); err != nil {
@@ -47,8 +47,8 @@ func TestSeedNovember(t *testing.T) {
 		"ola":  {o.Income, o.Obligation, o.PaidDirect, o.Transfer, o.Private, o.Leftover},
 	}
 	want := map[string]figures{
-		"kari": {money.Kr(44_500), ore(15_906, 50), money.Kr(389), ore(15_517, 50), money.Kr(4_399), ore(24_194, 50)},
-		"ola":  {money.Kr(47_000), ore(16_056, 50), money.Kr(1_600), ore(14_456, 50), money.Kr(4_000), ore(26_943, 50)},
+		"kari": {money.Kr(44_500), ore(15_981, 50), money.Kr(389), ore(15_592, 50), money.Kr(4_399), ore(24_119, 50)},
+		"ola":  {money.Kr(47_000), ore(15_981, 50), money.Kr(1_600), ore(14_381, 50), money.Kr(4_000), ore(27_018, 50)},
 	}
 	for name := range want {
 		if got[name] != want[name] {

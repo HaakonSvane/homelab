@@ -37,16 +37,16 @@ func TestPaydayOnIncome(t *testing.T) {
 
 // With the clock at Friday 20 November 2026 and Kari's payday on the 12th, her pay
 // period runs 12 November → 11 December: 29 days, 21 left including today. Her free
-// money for November is 24 194,50 kr, so an even pace leaves 24 194,50 × 21/29 =
-// 17 520,16 kr today, and 834,29 kr per day is normal.
+// money for November is 24 119,50 kr, so an even pace leaves 24 119,50 × 21/29 =
+// 17 465,84 kr today, and 831,71 kr per day is normal.
 func TestFreeSpending(t *testing.T) {
 	h := newSeededHarness(t)
 	mustContain(t, h.get("/", http.StatusOK), "Legg inn lønningsdagen din under") // no payday yet
 	setKariPayday(t, h, "12")
 	body := h.get("/", http.StatusOK)
 	mustContain(t, body,
-		"Til fri bruk", nb("17 520,16 kr"), `<progress max="29" value="8"`,
-		"Lønning fredag 11. desember, om 21 dager", nb("834,29 kr"),
+		"Til fri bruk", nb("17 465,84 kr"), `<progress max="29" value="8"`,
+		"Lønning fredag 11. desember, om 21 dager", nb("831,71 kr"),
 		"Legg inn lønningsdag under", // Ola has none
 		`id="kan-jeg-kjope"`)
 	// Other months don't show the "now" sections.
@@ -64,10 +64,10 @@ func TestCanIBuy(t *testing.T) {
 		want                 []string
 	}{
 		{"ahead of pace", "1 000", "20 000", []string{"Ja, det går fint.", nb("19 000,00 kr") + " til lønning om 21 dager"}},
-		{"tight", "1 000", "12 000", []string{"Ja, men det blir stramt.", nb("523,81 kr") + " per dag, mot vanlig " + nb("834,29 kr")}},
+		{"tight", "1 000", "12 000", []string{"Ja, men det blir stramt.", nb("523,81 kr") + " per dag, mot vanlig " + nb("831,71 kr")}},
 		{"rather not", "1 000", "8 000", []string{"Helst ikke nå.", nb("333,33 kr") + " per dag"}},
 		{"not covered", "800", "500", []string{"Nei, saldoen dekker ikke kjøpet.", "Du mangler " + nb("300,00 kr")}},
-		{"bigger than a month", "30 000", "60 000", []string{"Ja, det går fint.", "større enn en hel måneds fri bruk (" + nb("24 194,50 kr") + ")"}},
+		{"bigger than a month", "30 000", "60 000", []string{"Ja, det går fint.", "større enn en hel måneds fri bruk (" + nb("24 119,50 kr") + ")"}},
 	} {
 		status, body, _ := h.do("POST", "/kan-jeg-kjope", form("price", c.price, "balance", c.balance), "HX-Request", "true")
 		if status != http.StatusOK {
@@ -124,7 +124,7 @@ func TestFreeSpendingBeforeFirstRegisteredPayday(t *testing.T) {
 		t.Fatalf("income: %d", status)
 	}
 	if status, _, _ := h.do("POST", "/utgifter", form("name", "Husleie", "kind", "shared", "amount", "10 000", "freq", "monthly",
-		"share", "50", "payer", "0", "valid_from", "2026-11")); status != http.StatusSeeOther {
+		"payer", "0", "valid_from", "2026-11")); status != http.StatusSeeOther {
 		t.Fatalf("expense: %d", status)
 	}
 	// Period 26 Oct (Mon) → 26 Nov (Thu): 31 days, 6 left. November's free money is

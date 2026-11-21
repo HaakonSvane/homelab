@@ -57,6 +57,10 @@ func TestUpcoming(t *testing.T) {
 		got[1].Name != "Bilforsikring" || got[1].Month != month.MustParse("2027-04") || got[1].Amount != money.Kr(9_000) {
 		t.Errorf("Mar–May = %+v", got)
 	}
+	// The starting month itself is included.
+	if got, _ := Upcoming(in, month.MustParse("2027-03"), 3); len(got) != 2 || got[0].Month != month.MustParse("2027-03") || got[0].Name != "Kommunale avgifter" {
+		t.Errorf("from March = %+v", got)
+	}
 	// Kindergarten (11 months a year) is not "irregular".
 	for _, b := range got {
 		if b.Name == "Barnehage" {

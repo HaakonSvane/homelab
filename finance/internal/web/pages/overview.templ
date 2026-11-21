@@ -2,7 +2,6 @@ package pages
 
 import (
 	"fmt"
-	"github.com/HaakonSvane/homelab/finance/internal/month"
 	"github.com/HaakonSvane/homelab/finance/internal/web/components"
 	"strings"
 )
@@ -90,38 +89,6 @@ templ Overview(v OverviewView) {
 					}
 				</tbody>
 			</table>
-		</section>
-		<section>
-			<h2>Forfaller i { month.Name(v.Nav.Month.Month()) }</h2>
-			if len(v.Due) == 0 {
-				<p class="muted">Ingen regninger forfaller denne måneden.</p>
-			} else {
-				<table class="ledger">
-					<tbody>
-						for _, d := range v.Due {
-							<tr>
-								<td class="icon-cell">
-									@components.Icon(d.Icon)
-								</td>
-								<th scope="row">
-									{ d.Name }
-									<div class="muted small">{ d.Payer }</div>
-								</th>
-								<td class="num">{ components.Amount(d.Amount) }</td>
-							</tr>
-						}
-					</tbody>
-				</table>
-				<p class="muted small">
-					Fra felleskontoen går <span class="num">{ components.Kr(v.DueFromFelleskonto) }</span> ut og
-					<span class="num">{ components.Kr(v.Felleskonto) }</span> inn:
-					if v.BufferChange >= 0 {
-						bufferen øker med <span class="num">{ components.Kr(v.BufferChange) }</span>.
-					} else {
-						bufferen brukes med <span class="num">{ components.Kr(-v.BufferChange) }</span>.
-					}
-				</p>
-			}
 		</section>
 		if len(v.Upcoming) > 0 {
 			<section>
