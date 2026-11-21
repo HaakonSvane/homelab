@@ -68,8 +68,8 @@ type UpcomingRow struct {
 // BufferView is how much the felleskonto should hold for the irregular bills.
 type BufferView struct {
 	Required money.Ore
-	From     string // "november 2026"
-	LowNote  string // "Ellers går den i minus i april 2027, når Bilforsikring skal betales."
+	Headline string // "Felleskontoen bør ha minst 20 767,50 kr nå."
+	Detail   string // how it was worked out, and when the account is lowest
 	CanCheck bool   // offer the balance check (current month only)
 	Balance  string
 	Errors   map[string]string
@@ -147,7 +147,8 @@ type ExpenseForm struct {
 	KindLabel  string // shown when fixed: "Felles" / "Privat (Rikke)"
 	Owners     []Option
 	Amount     string
-	Freq       string // monthly, semiannual, yearly, eleven or custom
+	Freq       string   // monthly, semiannual, yearly, eleven or custom
+	DueDays    []Option // day of month it is drawn
 	YearMonths []Option
 	SemiMonths []Option // "januar og juli" … "juni og desember"
 	Months     []MonthBox

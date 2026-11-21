@@ -336,3 +336,29 @@ func TestDeleteExpense(t *testing.T) {
 		t.Errorf("htmx delete: %d, HX-Redirect %q", status, hdr.Get("HX-Redirect"))
 	}
 }
+
+func TestExpenseDueDay(t *testing.T) {
+	h := newSeededHarness(t)
+	body := form("name", "Renovasjon", "kind", "shared", "amount", "300", "freq", "monthly",
+		"due_day", "15", "payer", "0", "valid_from", "2026-11")
+	if status, b, _ := h.do("POST", "/utgifter", body); status != http.StatusSeeOther {
+		t.Fatalf("create: %d\n%s", status, b)
+	}
+	e := expenseByName(t, h.st, "Renovasjon")
+	if e.Versions[0].DueDay != 15 {
+		t.Fatalf("due day = %d", e.Versions[0].DueDay)
+	}
+	mustContain(t, h.get("/utgifter", http.StatusOK), "Månedlig, den 15.")
+	path := "/utgifter/" + strconv.FormatInt(e.ID, 10)
+	mustContain(t, h.get(path+"/endre", http.StatusOK), `<option value="15" selected>den 15.</option>`, "Trekkes den")
+
+	// Changing only the due day is a change of terms: a new version from that month.
+	if status, _, _ := h.do("POST", path, form("name", "Renovasjon", "amount", "300", "freq", "monthly",
+		"due_day", "31", "payer", "0", "valid_from", "2027-01")); status != http.StatusSeeOther {
+		t.Fatal("edit failed")
+	}
+	if e := expenseByName(t, h.st, "Renovasjon"); len(e.Versions) != 2 || e.Versions[1].DueDay != 31 {
+		t.Errorf("versions = %+v", e.Versions)
+	}
+	mustContain(t, h.get("/utgifter?m=2027-01", http.StatusOK), "Månedlig, siste dag i måneden")
+}

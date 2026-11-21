@@ -113,8 +113,11 @@ func paydayLabel(day int) string {
 }
 
 // paydayOptions offers "Ikke satt", the 1st–30th and the last day of the month.
-func paydayOptions(selected int) []pages.Option {
-	out := []pages.Option{{Value: "0", Label: "Ikke satt", Selected: selected == 0}}
+func paydayOptions(selected int) []pages.Option { return dayOptions(selected, "Ikke satt") }
+
+// dayOptions offers an unset choice, the 1st–30th and the last day of the month.
+func dayOptions(selected int, unset string) []pages.Option {
+	out := []pages.Option{{Value: "0", Label: unset, Selected: selected == 0}}
 	for day := 1; day <= 31; day++ {
 		label := paydayLabel(day)
 		if day == 31 {
@@ -123,6 +126,23 @@ func paydayOptions(selected int) []pages.Option {
 		out = append(out, pages.Option{Value: strconv.Itoa(day), Label: label, Selected: day == selected})
 	}
 	return out
+}
+
+// parseDay reads a day-of-month select (0 = not set).
+func parseDay(raw string) int {
+	day, err := strconv.Atoi(raw)
+	if err != nil || day < 0 || day > 31 {
+		return 0
+	}
+	return day
+}
+
+// longDate is nbDate plus the year when it isn't this year: "torsdag 1. april 2027".
+func longDate(d budget.Date, thisYear int) string {
+	if d.Year != thisYear {
+		return nbDate(d) + " " + strconv.Itoa(d.Year)
+	}
+	return nbDate(d)
 }
 
 // today is the current date in Oslo.

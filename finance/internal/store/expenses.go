@@ -123,16 +123,17 @@ func (s *Store) SaveExpenseVersion(ctx context.Context, id int64, v ledger.Expen
 func upsertVersion(ctx context.Context, tx *sql.Tx, expenseID int64, v ledger.ExpenseVersion, by ledger.UserID, now string) error {
 	var versionID int64
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO expense_versions (expense_id, valid_from, amount_ore, due_months, payer_id, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO expense_versions (expense_id, valid_from, amount_ore, due_months, due_day, payer_id, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (expense_id, valid_from) DO UPDATE SET
 			amount_ore = excluded.amount_ore,
 			due_months = excluded.due_months,
+			due_day    = excluded.due_day,
 			payer_id   = excluded.payer_id,
 			created_by = excluded.created_by,
 			created_at = excluded.created_at
 		RETURNING id`,
-		expenseID, v.ValidFrom, int64(v.Amount), int64(v.Due), nullUser(v.Payer), int64(by), now,
+		expenseID, v.ValidFrom, int64(v.Amount), int64(v.Due), nullDay(v.DueDay), nullUser(v.Payer), int64(by), now,
 	).Scan(&versionID)
 	if err != nil {
 		return err
@@ -279,7 +280,7 @@ func loadExpenses(ctx context.Context, q querier, id int64) ([]Expense, error) {
 		vfilter = " WHERE expense_id = ?"
 	}
 	rows, err = q.QueryContext(ctx, `
-		SELECT id, expense_id, valid_from, amount_ore, due_months, payer_id, created_by, created_at
+		SELECT id, expense_id, valid_from, amount_ore, due_months, due_day, payer_id, created_by, created_at
 		FROM expense_versions`+vfilter+` ORDER BY expense_id, valid_from`, args...)
 	if err != nil {
 		return nil, err
@@ -290,13 +291,13 @@ func loadExpenses(ctx context.Context, q querier, id int64) ([]Expense, error) {
 		var v ledger.ExpenseVersion
 		var meta VersionMeta
 		var expenseID int64
-		var payer sql.NullInt64
+		var payer, dueDay sql.NullInt64
 		var created string
-		if err := rows.Scan(&meta.ID, &expenseID, &v.ValidFrom, &v.Amount, &v.Due, &payer, &meta.CreatedBy, &created); err != nil {
+		if err := rows.Scan(&meta.ID, &expenseID, &v.ValidFrom, &v.Amount, &v.Due, &dueDay, &payer, &meta.CreatedBy, &created); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		v.Payer = ledger.UserID(payer.Int64)
+		v.Payer, v.DueDay = ledger.UserID(payer.Int64), int(dueDay.Int64)
 		if meta.CreatedAt, err = parseTime(created); err != nil {
 			rows.Close()
 			return nil, err

@@ -129,10 +129,7 @@ func (s *Server) saveIncome(w http.ResponseWriter, r *http.Request) {
 	if len([]rune(note)) > 200 {
 		errs["note"] = "Notatet kan ha maks 200 tegn."
 	}
-	payday, err := strconv.Atoi(r.PostFormValue("payday"))
-	if err != nil || payday < 0 || payday > 31 {
-		payday = 0
-	}
+	payday := parseDay(r.PostFormValue("payday"))
 	if len(errs) == 0 {
 		err := s.store.SetIncome(r.Context(), u.ID, ledger.IncomeVersion{ValidFrom: from, Amount: amount, Payday: payday}, note, currentUser(r).ID)
 		if err == nil {

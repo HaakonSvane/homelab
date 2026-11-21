@@ -87,11 +87,12 @@ func TestCanIBuy(t *testing.T) {
 
 func TestBufferAndUpcoming(t *testing.T) {
 	h := newSeededHarness(t)
-	// From November 2026 (see ledger.TestBufferNeed): 3 450 kr, bottoming out in
-	// April 2027 when the car insurance is due. No irregular bills Dec–Feb.
+	// No paydays yet: the monthly estimate from November 2026 (see
+	// ledger.TestBufferNeed), 3 450 kr. No irregular bills Nov–Feb.
 	body := h.get("/", http.StatusOK)
-	mustContain(t, body, "Buffer på felleskontoen", "Ved inngangen til november 2026", nb("3 450,00 kr"),
-		"Ellers går den i minus i april 2027, når Bilforsikring skal betales.", `action="/felleskonto/saldo"`)
+	mustContain(t, body, "Buffer på felleskontoen",
+		"Ved inngangen til november 2026 bør felleskontoen ha minst "+nb("3 450,00 kr")+" før månedens overføringer kommer inn.",
+		"Et grovt anslag per måned. Legg inn lønningsdag for begge", `action="/felleskonto/saldo"`)
 	if strings.Contains(body, "Kommende store regninger") {
 		t.Error("upcoming-bills section shown although it is empty")
 	}
@@ -137,4 +138,32 @@ func TestFreeSpendingBeforeFirstRegisteredPayday(t *testing.T) {
 	}
 	_, body, _ = h.do("POST", "/kan-jeg-kjope", form("price", "500", "balance", "8 000"))
 	mustContain(t, body, "Ja, det går fint.")
+}
+
+// With both paydays (Kari the 12th, Ola the 26th) the buffer follows the dates.
+// Every seed bill counts as drawn on the 1st, before either transfer. Each month
+// 15 592,50 + 14 381,50 = 29 974 kr comes in. From 21 November (after today's
+// transactions): +14 381,50 on 26 Nov, −28 249 on 1 Dec, +15 592,50 on 11 Dec, …
+// The deepest point is Thursday 1 April 2027, when Bilforsikring (9 000) comes on top
+// of the regular bills: −20 767,50. From 1 March the requirement is 40 324 kr, which
+// is 20 767,50 plus the 19 556,50 net that comes in from 21 November to the end of
+// February.
+func TestDatedBuffer(t *testing.T) {
+	h := newSeededHarness(t)
+	setKariPayday(t, h, "12")
+	ola := "/inntekt/" + strconv.FormatInt(int64(h.ola.ID), 10)
+	if status, _, _ := h.do("POST", ola, form("amount", "47 000", "valid_from", "2026-01", "payday", "26")); status != http.StatusSeeOther {
+		t.Fatalf("Ola's payday: %d", status)
+	}
+	mustContain(t, h.get("/", http.StatusOK),
+		"Felleskontoen bør ha minst "+nb("20 767,50 kr")+" nå.",
+		"Regnet med datoene for overføringer og trekk de neste tolv månedene, etter dagens transaksjoner.",
+		"Lavest torsdag 1. april 2027, når Bilforsikring trekkes.")
+	mustContain(t, h.get("/?m=2027-03", http.StatusOK),
+		"Ved inngangen til mars 2027 bør felleskontoen ha minst "+nb("40 324,00 kr")+".")
+
+	_, body, _ := h.do("POST", "/felleskonto/saldo", form("balance", "25 000"))
+	mustContain(t, body, "Saldoen er "+nb("4 232,50 kr")+" over det bufferen bør være.")
+	_, body, _ = h.do("POST", "/felleskonto/saldo", form("balance", "1 000"))
+	mustContain(t, body, "Saldoen er "+nb("19 767,50 kr")+" under det bufferen bør være.")
 }

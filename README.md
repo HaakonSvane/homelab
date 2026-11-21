@@ -175,7 +175,10 @@ Pay dates that fall on a weekend or a Norwegian bank holiday move to the previou
 
 Further down, two outlook sections:
 - **Kommende store regninger:** irregular bills (four times a year or less) this month and in the next three, hidden when there are none.
-- **Buffer på felleskontoen:** how much the shared account must hold to cover the irregular bills over the next 12 months, with an optional check against its real balance.
+- **Buffer på felleskontoen:** how much the shared account should hold right now so it never goes negative over the next 12 months.
+  - With both paydays set, it follows the actual dates: each person's transfer arrives on their pay date, and each bill is drawn on its due day ("Trekkes den" on the expense; if not set, it counts as the 1st).
+  - Without paydays it shows a rougher monthly estimate.
+  - An optional check compares the figure with the account's real balance.
 
 DNS and TLS need no extra setup: the Pi-hole wildcard already resolves `finans.home.arpa`, and Caddy's `local_certs` covers it. Each device only needs Caddy's CA trusted once (see above).
 

@@ -53,7 +53,7 @@ func Settle(in Input, m month.Month) (Settlement, error) {
 		if v.Due.Has(m.Month()) && v.Amount > 0 {
 			due = append(due, DueItem{
 				ExpenseID: e.ID, Name: e.Name, Category: e.Category, Kind: e.Kind,
-				Owner: e.Owner, Payer: v.Payer, Amount: v.Amount, PerYear: v.Due.Count(),
+				Owner: e.Owner, Payer: v.Payer, Amount: v.Amount, PerYear: v.Due.Count(), DueDay: v.DueDay,
 			})
 		}
 	}
@@ -284,6 +284,9 @@ func ValidateExpense(e Expense, users []UserID) error {
 		}
 		if !v.Due.Valid() {
 			return fail("version %v: due mask %b invalid", v.ValidFrom, v.Due)
+		}
+		if v.DueDay < 0 || v.DueDay > 31 {
+			return fail("version %v: due day %d out of range", v.ValidFrom, v.DueDay)
 		}
 		if e.Kind == Private {
 			if v.Payer != Felleskonto || len(v.Shares) > 0 {

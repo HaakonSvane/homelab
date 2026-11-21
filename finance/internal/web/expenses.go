@@ -96,7 +96,11 @@ func expenseRow(e ledger.Expense, v ledger.ExpenseVersion, names map[ledger.User
 	if e.Category != "" {
 		parts = append(parts, e.Category)
 	}
-	parts = append(parts, v.Due.Describe())
+	due := v.Due.Describe()
+	if v.DueDay > 0 {
+		due += ", " + paydayLabel(v.DueDay)
+	}
+	parts = append(parts, due)
 	if v.Due != month.Monthly {
 		parts = append(parts, money.Format(v.Amount)+" per gang")
 	}
@@ -120,6 +124,7 @@ type expenseState struct {
 	freq                   string
 	yearAnchor, semiAnchor time.Month
 	due                    month.Mask
+	dueDay                 int // day of month the bill is drawn; 0 = not set
 	validFrom              month.Month
 	errors                 map[string]string
 }
@@ -166,6 +171,7 @@ func stateFromExpense(e store.Expense, now month.Month, users []store.User) expe
 		amount: money.FormatNumber(v.Amount), validFrom: from, errors: map[string]string{},
 	}
 	st.setFrequency(v.Due, from.Month())
+	st.dueDay = v.DueDay
 	return st
 }
 
@@ -182,6 +188,7 @@ func readExpenseForm(r *http.Request, st *expenseState, editing bool) {
 	}
 	st.payer = parseUserID(r.PostFormValue("payer"))
 	st.validFrom, _ = month.Parse(r.PostFormValue("valid_from"))
+	st.dueDay = parseDay(r.PostFormValue("due_day"))
 	if n, err := strconv.Atoi(r.PostFormValue("year_anchor")); err == nil && n >= 1 && n <= 12 {
 		st.yearAnchor = time.Month(n)
 	}
@@ -241,7 +248,7 @@ func validateExpense(st *expenseState, users []store.User, existing *store.Expen
 	for i, u := range users {
 		ids[i] = u.ID
 	}
-	v := ledger.ExpenseVersion{ValidFrom: st.validFrom, Amount: amount, Due: st.due}
+	v := ledger.ExpenseVersion{ValidFrom: st.validFrom, Amount: amount, Due: st.due, DueDay: st.dueDay}
 	switch st.kind {
 	case ledger.Private:
 		if !slices.Contains(ids, st.owner) {
@@ -275,7 +282,7 @@ func equalShares(users []store.User) []ledger.Share {
 }
 
 func sameTerms(a, b ledger.ExpenseVersion) bool {
-	if a.Amount != b.Amount || a.Due != b.Due || a.Payer != b.Payer || len(a.Shares) != len(b.Shares) {
+	if a.Amount != b.Amount || a.Due != b.Due || a.DueDay != b.DueDay || a.Payer != b.Payer || len(a.Shares) != len(b.Shares) {
 		return false
 	}
 	bp := map[ledger.UserID]int{}
@@ -316,6 +323,7 @@ func (s *Server) expenseFormView(st expenseState, existing *store.Expense, users
 		f.Payers = append(f.Payers, pages.Option{Value: strconv.FormatInt(int64(u.ID), 10), Label: u.DisplayName + " (direkte)", Selected: u.ID == st.payer})
 	}
 	f.Freq = st.freq
+	f.DueDays = dayOptions(st.dueDay, "Ikke satt (regnes som den 1.)")
 	for m := time.January; m <= time.December; m++ {
 		f.Months = append(f.Months, pages.MonthBox{Value: int(m), Label: month.ShortName(m), Checked: st.due.Has(m)})
 		f.YearMonths = append(f.YearMonths, pages.Option{Value: strconv.Itoa(int(m)), Label: month.Name(m), Selected: m == st.yearAnchor})

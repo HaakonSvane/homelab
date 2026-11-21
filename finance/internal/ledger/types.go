@@ -34,6 +34,7 @@ type ExpenseVersion struct {
 	ValidFrom month.Month
 	Amount    money.Ore  // per occurrence, not per month
 	Due       month.Mask // months the bill falls due
+	DueDay    int        // day of month it is drawn, 1–31 (31 = last day); 0 = not set, counts as the 1st
 	Payer     UserID     // who pays the bill: Felleskonto, or a user paying directly (shared only)
 	Shares    []Share    // shared only; must sum to 10000. Users not listed have 0.
 }
@@ -99,6 +100,7 @@ type DueItem struct {
 	Payer     UserID
 	Amount    money.Ore
 	PerYear   int // how many months a year the bill falls due
+	DueDay    int // day of month it is drawn; 0 = not set
 }
 
 // Settlement is the result for one month.

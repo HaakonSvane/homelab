@@ -229,6 +229,15 @@ templ ExpenseFormBody(f ExpenseForm) {
 				</div>
 				@fieldError(f.Errors["due"])
 			</fieldset>
+			<div class="field">
+				<label for="due_day">Trekkes den</label>
+				<select id="due_day" name="due_day">
+					for _, o := range f.DueDays {
+						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+					}
+				</select>
+				<p class="muted small">Brukes når bufferen på felleskontoen regnes ut.</p>
+			</div>
 			if !f.KindFixed || f.Kind == "shared" {
 				<div class="shared-only">
 					<div class="field">

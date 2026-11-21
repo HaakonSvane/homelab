@@ -177,6 +177,16 @@ func TestExpenseVersionUpsert(t *testing.T) {
 		t.Errorf("expense = %+v", e)
 	}
 
+	// The due day is stored with the version.
+	dec := ledger.ExpenseVersion{ValidFrom: month.MustParse("2026-12"), Amount: money.Kr(1_300), Due: month.Monthly, DueDay: 20, Shares: shares(a, b, 5000)}
+	if err := s.SaveExpenseVersion(ctx, id, dec, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Expense(ctx, id); got.Versions[2].DueDay != 20 || got.Versions[0].DueDay != 0 {
+		t.Errorf("due days = %d, %d; want 0 … 20", got.Versions[0].DueDay, got.Versions[2].DueDay)
+	}
+	e, _ = s.Expense(ctx, id)
+
 	// An invalid version is rejected and changes nothing.
 	bad := june
 	bad.Shares = shares(a, b, 7000)[:1]

@@ -155,14 +155,9 @@ templ BuySection(b BuyForm) {
 templ BufferSection(b BufferView) {
 	<section id="buffer">
 		<h2>Buffer på felleskontoen</h2>
-		if b.Required == 0 {
-			<p>Overføringene dekker alle regningene de neste tolv månedene, så det trengs ingen ekstra buffer.</p>
-		} else {
-			<p>
-				Ved inngangen til { b.From } bør felleskontoen ha minst <span class="num">{ components.Kr(b.Required) }</span>
-				før månedens overføringer kommer inn.
-			</p>
-			<p class="muted small">{ b.LowNote }</p>
+		<p>{ b.Headline }</p>
+		if b.Detail != "" {
+			<p class="muted small">{ b.Detail }</p>
 		}
 		if b.CanCheck {
 			<form class="inline-form" method="post" action="/felleskonto/saldo" hx-post="/felleskonto/saldo" hx-target="#buffer" hx-select="#buffer" hx-swap="outerHTML transition:false" novalidate>

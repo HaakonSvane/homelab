@@ -64,7 +64,7 @@ A Go web app at `https://finans.home.arpa` (Caddy → `finance:8080`) for the ho
   - Interactivity is htmx plus the `<dialog popover>` bottom sheet, with CSS `:has()` showing and hiding fields; plain form POST-redirect-GET must keep working.
   - Icons are Phosphor Light path data in `internal/web/components/icons.go` (MIT licence alongside).
   - `go:embed` serves `web/static/` with content-hashed URLs.
-- **Time-based features:** `internal/budget` (pure) handles pay dates with Norwegian bank holidays, pay periods, spending pace and purchase advice. `ledger.BufferNeed` and `ledger.Upcoming` drive the overview's outlook sections. The overview calculators (`POST /kan-jeg-kjope`, `POST /felleskonto/saldo`) render the page with the answer instead of redirecting, and never store what was typed.
+- **Time-based features:** `internal/budget` (pure) handles pay dates with Norwegian bank holidays, pay periods, spending pace and purchase advice. `budget.FelleskontoBuffer` simulates the felleskonto day by day: transfers on pay dates, bills on their due day (`ExpenseVersion.DueDay`, 0 = the 1st), and bills before transfers on the same day. It falls back to the monthly `ledger.BufferNeed` when a payday is missing. `ledger.Upcoming` lists the big irregular bills. The overview calculators (`POST /kan-jeg-kjope`, `POST /felleskonto/saldo`) render the page with the answer instead of redirecting, and never store what was typed.
 - **Container:** distroless `nonroot` (uid 65532), so `finance/data` must be owned by 65532. Nightly backups go to `finance/data/backups`, and `status/collect.py` checks their age.
 
 ### Caddy: single ingress + custom local domain

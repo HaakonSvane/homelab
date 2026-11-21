@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -110,29 +111,9 @@ func (s *Server) renderOverview(w http.ResponseWriter, r *http.Request, m month.
 		v.Upcoming = append(v.Upcoming, pages.UpcomingRow{Icon: components.CategoryIcon(b.Category, b.Name), Name: b.Name,
 			When: b.Month.Label(), Payer: payerLabel(b.DueItem, names), Amount: b.Amount})
 	}
-	plan, err := ledger.BufferNeed(in, m, bufferMonths)
-	if err != nil {
+	if v.Buffer, err = s.bufferView(in, m, v.IsCurrent, input); err != nil {
 		serverError(w, r, err)
 		return
-	}
-	v.Buffer = pages.BufferView{Required: plan.Required, From: m.Label(), CanCheck: v.IsCurrent, Errors: map[string]string{}}
-	if plan.Required > 0 {
-		v.Buffer.LowNote = "Ellers går den i minus i " + plan.LowMonth.Label()
-		if plan.LowBill.Name != "" {
-			v.Buffer.LowNote += ", når " + plan.LowBill.Name + " skal betales"
-		}
-		v.Buffer.LowNote += "."
-	}
-	if input.bufferCheck {
-		v.Buffer.Balance = input.fkBalance
-		if bal, msg := parseAmount(input.fkBalance); msg != "" {
-			v.Buffer.Errors["balance"] = msg
-		} else if diff := bal - plan.Required; diff >= 0 {
-			v.Buffer.Result = "Saldoen er " + money.Format(diff) + " over det bufferen bør være."
-		} else {
-			v.Buffer.Result = "Saldoen er " + money.Format(-diff) + " under det bufferen bør være. Vurder en ekstra overføring."
-			v.Buffer.Short = true
-		}
 	}
 
 	status := http.StatusOK
@@ -140,6 +121,66 @@ func (s *Server) renderOverview(w http.ResponseWriter, r *http.Request, m month.
 		status = http.StatusUnprocessableEntity
 	}
 	render(w, r, status, pages.Overview(v))
+}
+
+// bufferView works out how much the felleskonto must hold. With both paydays it
+// follows the actual dates (transfers on pay dates, bills on due days), from
+// tomorrow for the current month (today's transactions are taken as done) or from
+// the 1st for another month. Without paydays it falls back to the monthly estimate.
+func (s *Server) bufferView(in ledger.Input, m month.Month, current bool, input overviewInput) (pages.BufferView, error) {
+	bv := pages.BufferView{CanCheck: current, Errors: map[string]string{}}
+	from := budget.Date{Year: m.Year(), Month: m.Month(), Day: 1}
+	if current {
+		from = s.today().AddDays(1)
+	}
+	dated, err := budget.FelleskontoBuffer(in, from)
+	switch {
+	case errors.Is(err, budget.ErrNoPayday):
+		monthly, err := ledger.BufferNeed(in, m, bufferMonths)
+		if err != nil {
+			return bv, err
+		}
+		bv.Required = monthly.Required
+		if bv.Required == 0 {
+			bv.Headline = "Overføringene dekker alle regningene de neste tolv månedene, så det trengs ingen ekstra buffer."
+		} else {
+			bv.Headline = "Ved inngangen til " + m.Label() + " bør felleskontoen ha minst " + money.Format(bv.Required) +
+				" før månedens overføringer kommer inn."
+		}
+		bv.Detail = "Et grovt anslag per måned. Legg inn lønningsdag for begge under Inntekt, så regnes bufferen med datoene pengene faktisk går inn og ut."
+	case err != nil:
+		return bv, err
+	default:
+		bv.Required = dated.Required
+		switch {
+		case bv.Required == 0:
+			bv.Headline = "Overføringene kommer i tide til alle regningene de neste tolv månedene, så det trengs ingen ekstra buffer."
+		case current:
+			bv.Headline = "Felleskontoen bør ha minst " + money.Format(bv.Required) + " nå."
+		default:
+			bv.Headline = "Ved inngangen til " + m.Label() + " bør felleskontoen ha minst " + money.Format(bv.Required) + "."
+		}
+		bv.Detail = "Regnet med datoene for overføringer og trekk de neste tolv månedene"
+		if current {
+			bv.Detail += ", etter dagens transaksjoner"
+		}
+		bv.Detail += "."
+		if bv.Required > 0 {
+			bv.Detail += " Lavest " + longDate(dated.LowDate, s.today().Year) + ", når " + dated.LowBill + " trekkes."
+		}
+	}
+	if input.bufferCheck {
+		bv.Balance = input.fkBalance
+		if bal, msg := parseAmount(input.fkBalance); msg != "" {
+			bv.Errors["balance"] = msg
+		} else if diff := bal - bv.Required; diff >= 0 {
+			bv.Result = "Saldoen er " + money.Format(diff) + " over det bufferen bør være."
+		} else {
+			bv.Result = "Saldoen er " + money.Format(-diff) + " under det bufferen bør være. Vurder en ekstra overføring."
+			bv.Short = true
+		}
+	}
+	return bv, nil
 }
 
 // payerLabel says who pays a due bill: "Felleskonto", "Ola betaler", "Kari (privat)".
